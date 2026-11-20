@@ -1,0 +1,380 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>LumiTranslate 改名提案</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: a Dock-shaped hero showing all five icons, then one specimen sheet per candidate (big icon, size ladder, menu-bar strips, rationale). */
+:root {
+  --bg: #F3F4F7;
+  --card: #FFFFFF;
+  --fg: #16181D;
+  --muted: #5E6472;
+  --line: #E1E3EA;
+  --accent: #2F5BEA;
+  --chip: #EEF1F8;
+  --dock: rgba(255,255,255,.55);
+  --dock-line: rgba(20,24,40,.10);
+  --desk-a: #9FB4D9;
+  --desk-b: #D8C9E6;
+  --font-display: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --font-latin: "Manrope", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101217; --card: #191C23; --fg: #ECEEF2; --muted: #9AA1AE; --line: #2A2E38;
+    --accent: #7E9BFF; --chip: #232733; --dock: rgba(40,44,56,.6); --dock-line: rgba(255,255,255,.10);
+    --desk-a: #27345A; --desk-b: #3F2F55; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101217; --card: #191C23; --fg: #ECEEF2; --muted: #9AA1AE; --line: #2A2E38;
+  --accent: #7E9BFF; --chip: #232733; --dock: rgba(40,44,56,.6); --dock-line: rgba(255,255,255,.10);
+  --desk-a: #27345A; --desk-b: #3F2F55; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body);
+  font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 1040px; margin: 0 auto; display: grid; gap: 40px; }
+header { display: grid; gap: 10px; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+h1 { font-family: var(--font-display); font-weight: 900; font-size: clamp(28px, 4.5vw, 44px); line-height: 1.2; margin: 0; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 62ch; margin: 0; }
+
+/* Desktop + Dock hero */
+.desk {
+  border-radius: 18px; padding: 56px 16px 22px;
+  background: linear-gradient(135deg, var(--desk-a), var(--desk-b));
+  display: grid; justify-items: center; overflow: hidden;
+}
+.dock {
+  display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; justify-content: center;
+  padding: 10px 14px; border-radius: 26px; background: var(--dock);
+  border: 1px solid var(--dock-line); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.dock a { display: grid; justify-items: center; gap: 6px; text-decoration: none; color: var(--fg); }
+.dock svg { width: 72px; height: 72px; filter: drop-shadow(0 6px 10px rgba(0,0,0,.22)); transition: transform .18s ease; }
+.dock a:hover svg, .dock a:focus-visible svg { transform: translateY(-6px) scale(1.06); }
+.dock span { font-size: 12px; font-weight: 600; }
+.dock a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 12px; }
+
+/* Candidate sheet */
+.cand {
+  background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+  padding: 28px; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px;
+  scroll-margin-top: 16px;
+}
+.hero-icon { display: grid; gap: 18px; align-content: start; justify-items: center; }
+.hero-icon svg.big { width: 200px; height: 200px; max-width: 100%; filter: drop-shadow(0 14px 22px rgba(0,0,0,.22)); }
+.ladder { display: flex; align-items: flex-end; gap: 14px; }
+.ladder figure { margin: 0; display: grid; justify-items: center; gap: 4px; }
+.ladder figcaption { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.info { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.name-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.zh { font-family: var(--font-display); font-weight: 900; font-size: 46px; line-height: 1; }
+.en { font-family: var(--font-latin); font-weight: 800; font-size: 26px; letter-spacing: -.01em; }
+.tag { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+.tag.pick { background: var(--accent); color: var(--card); }
+.pitch { font-size: 17px; margin: 0; max-width: 60ch; }
+.points { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
+.points div { min-width: 0; }
+.points dt { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.points dd { margin: 2px 0 0; }
+
+/* Menu bar strips */
+.bars { display: grid; gap: 8px; }
+.menubar {
+  height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: flex-end;
+  gap: 16px; padding: 0 14px; font: 500 13px/1 -apple-system, "SF Pro Text", var(--font-body);
+}
+.menubar.light { background: #ECECEE; color: #1D1D1F; }
+.menubar.dark { background: #2B2B30; color: #F5F5F7; }
+.menubar svg { width: 18px; height: 18px; }
+.menubar .ours { padding: 3px 5px; border-radius: 5px; display: grid; }
+.menubar.light .ours { background: rgba(0,0,0,.09); }
+.menubar.dark .ours { background: rgba(255,255,255,.16); }
+.menubar .ghost { width: 16px; height: 12px; border-radius: 3px; opacity: .35; background: currentColor; }
+.menubar .clock { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar-caption { font-size: 12px; color: var(--muted); }
+
+.verdict {
+  border-top: 1px solid var(--line); padding-top: 28px; display: grid; gap: 10px; max-width: 70ch;
+}
+.verdict h2 { font-family: var(--font-display); font-size: 24px; margin: 0; }
+.verdict p { margin: 0; color: var(--muted); }
+.verdict strong { color: var(--fg); }
+
+/* Round 2: Ferry palettes */
+.round2 { display: grid; gap: 20px; }
+.r2-head h2 { font-family: var(--font-display); font-size: 26px; margin: 0; }
+.r2-head p { margin: 4px 0 0; color: var(--muted); }
+.r2-desk { padding-top: 40px; }
+.dock .cur span { opacity: .6; }
+.palettes { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+.pal {
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  padding: 20px 18px; display: grid; gap: 12px; justify-items: center; text-align: center;
+}
+.pal.rec { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.pal svg.mid { width: 120px; height: 120px; filter: drop-shadow(0 10px 16px rgba(0,0,0,.2)); }
+.pal h3 { margin: 0; font-family: var(--font-display); font-size: 20px; display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.pal p { margin: 0; font-size: 13px; color: var(--muted); }
+.swatches { display: flex; gap: 6px; }
+.swatches i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); }
+.pal .ladder { gap: 10px; }
+
+@media (max-width: 760px) {
+  .cand { grid-template-columns: minmax(0, 1fr); padding: 22px; gap: 22px; }
+  .hero-icon svg.big { width: 160px; height: 160px; }
+  .points { grid-template-columns: minmax(0, 1fr); }
+  .zh { font-size: 38px; }
+  .dock svg { width: 54px; height: 54px; }
+  .dock { gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .dock svg { transition: none; } }
+</style>
+
+<!-- Icon library: app icons (100x100) and menu-bar template glyphs (24x24, currentColor) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="g-ferry" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14606A"/><stop offset="1" stop-color="#0A2C34"/></linearGradient>
+    <linearGradient id="g-glint" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFD84D"/><stop offset="1" stop-color="#FF962B"/></linearGradient>
+    <linearGradient id="g-reed" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EDEFE6"/><stop offset="1" stop-color="#D9DFCF"/></linearGradient>
+    <linearGradient id="g-lumen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2B2468"/><stop offset="1" stop-color="#0F1030"/></linearGradient>
+    <radialGradient id="g-orb" cx=".42" cy=".4" r=".6"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".45" stop-color="#FFE29A"/><stop offset="1" stop-color="#FF9C40"/></radialGradient>
+    <radialGradient id="g-halo"><stop offset="0" stop-color="#FFC56B" stop-opacity=".55"/><stop offset="1" stop-color="#FFC56B" stop-opacity="0"/></radialGradient>
+    <linearGradient id="g-duet" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FAFAFC"/><stop offset="1" stop-color="#E9EBF2"/></linearGradient>
+  </defs>
+
+  <symbol id="app-ferry" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="22.4" fill="url(#g-ferry)"/>
+    <path d="M49 19 L49 58 L26 58 Z" fill="#F4EBD6"/>
+    <path d="M53 29 L53 58 L71 58 Z" fill="#F2A65A"/>
+    <path d="M23 62 H77 L70 71 H30 Z" fill="#F4EBD6"/>
+    <path d="M16 80 q8.5 -5 17 0 t17 0 t17 0 t17 0" fill="none" stroke="#F4EBD6" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M24.5 88 q8.5 -4 17 0 t17 0 t17 0" fill="none" stroke="#F4EBD6" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="bar-ferry" viewBox="0 0 24 24">
+    <path d="M11.6 2.5V14H4.8Z" fill="currentColor"/>
+    <path d="M13.2 5.5V14H18.6Z" fill="currentColor" fill-opacity=".7"/>
+    <path d="M3.8 15.3H20.2L18 18H6Z" fill="currentColor"/>
+    <path d="M3 21.4q2.25-1.6 4.5 0t4.5 0 4.5 0 4.5 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+  </symbol>
+
+  <symbol id="app-glint" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="22.4" fill="url(#g-glint)"/>
+    <path d="M57 25 C59.5 47 66 53.5 88 56 C66 58.5 59.5 65 57 87 C54.5 65 48 58.5 26 56 C48 53.5 54.5 47 57 25 Z" fill="#231B10"/>
+    <path d="M27 15 C28 24 30 26 39 27 C30 28 28 30 27 39 C26 30 24 28 15 27 C24 26 26 24 27 15 Z" fill="#231B10" fill-opacity=".82"/>
+  </symbol>
+  <symbol id="bar-glint" viewBox="0 0 24 24">
+    <path d="M14 5.5c.55 5 2.5 7 8 8-5.5 1-7.45 3-8 8-.55-5-2.5-7-8-8 5.5-1 7.45-3 8-8z" fill="currentColor"/>
+    <path d="M5.2 1.8c.25 2 1 2.85 3.2 3.2-2.2.35-2.95 1.2-3.2 3.2-.25-2-1-2.85-3.2-3.2 2.2-.35 2.95-1.2 3.2-3.2z" fill="currentColor"/>
+  </symbol>
+
+  <symbol id="app-reed" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="22.4" fill="url(#g-reed)"/>
+    <ellipse cx="31" cy="86" rx="26" ry="4.4" fill="none" stroke="#1E2420" stroke-opacity=".18" stroke-width="1.4"/>
+    <ellipse cx="31" cy="86" rx="16" ry="2.8" fill="none" stroke="#1E2420" stroke-opacity=".42" stroke-width="1.6"/>
+    <path d="M27 86 Q46 54 75 13 Q53 55 32.5 87.5 Z" fill="#1E2420"/>
+    <path d="M49 55 Q64 50 80 60 Q63 56 50.5 58.5 Z" fill="#1E2420"/>
+    <path d="M41.5 68 Q31 61 20 63 Q32 65 40 71 Z" fill="#1E2420" fill-opacity=".85"/>
+    <rect x="69" y="71" width="13" height="13" rx="1.6" fill="#B5322A"/>
+    <rect x="71.2" y="73.2" width="8.6" height="8.6" rx=".8" fill="none" stroke="#F3E9E2" stroke-width=".9"/>
+  </symbol>
+  <symbol id="bar-reed" viewBox="0 0 24 24">
+    <path d="M5.6 21.2Q10.8 12.8 19.4 2.4Q13.6 13.4 7.4 21.9Z" fill="currentColor"/>
+    <path d="M12 13.4Q15.8 12.2 20 14.6Q15.6 13.8 12.4 14.3Z" fill="currentColor"/>
+    <ellipse cx="7" cy="21.4" rx="5" ry="1.05" fill="none" stroke="currentColor" stroke-opacity=".6" stroke-width="1.1"/>
+  </symbol>
+
+  <symbol id="app-lumen" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="22.4" fill="url(#g-lumen)"/>
+    <circle cx="31" cy="50" r="27" fill="url(#g-halo)"/>
+    <circle cx="31" cy="50" r="12.5" fill="url(#g-orb)"/>
+    <rect x="50" y="33.5" width="31" height="6.5" rx="3.25" fill="#FFE7B0"/>
+    <rect x="50" y="46.8" width="22" height="6.5" rx="3.25" fill="#FFE7B0" fill-opacity=".72"/>
+    <rect x="50" y="60" width="12" height="6.5" rx="3.25" fill="#FFE7B0" fill-opacity=".45"/>
+  </symbol>
+  <symbol id="bar-lumen" viewBox="0 0 24 24">
+    <circle cx="6.2" cy="12" r="3.6" fill="currentColor"/>
+    <circle cx="6.2" cy="12" r="5.6" fill="none" stroke="currentColor" stroke-opacity=".35" stroke-width="1.1"/>
+    <rect x="13" y="6.4" width="9" height="2.2" rx="1.1" fill="currentColor"/>
+    <rect x="13" y="10.9" width="6.4" height="2.2" rx="1.1" fill="currentColor" fill-opacity=".75"/>
+    <rect x="13" y="15.4" width="3.8" height="2.2" rx="1.1" fill="currentColor" fill-opacity=".5"/>
+  </symbol>
+
+  <symbol id="app-duet" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="22.4" fill="url(#g-duet)"/>
+    <path d="M21 20 H61 V31 H32 V65 H21 Z" fill="#2F6BFF"/>
+    <path d="M79 80 H39 V69 H68 V35 H79 Z" fill="#FF5A4E"/>
+  </symbol>
+  <symbol id="bar-duet" viewBox="0 0 24 24">
+    <path d="M3.5 3.5H13.5V6.2H6.2V14H3.5Z" fill="currentColor"/>
+    <path d="M20.5 20.5H10.5V17.8H17.8V10H20.5Z" fill="currentColor"/>
+  </symbol>
+</svg>
+<!-- Brighter Ferry palettes, generated from one template so the drawing stays identical -->
+<svg id="ferry-variants" width="0" height="0" style="position:absolute" aria-hidden="true"></svg>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">轻译 LumiTranslate · 命名与图标</div>
+    <h1>五个新名字，各配一套图标</h1>
+    <p class="lede">第二轮：「渡」的五套更亮配色在最前面。下面保留第一轮的五个候选，每个都给出 Dock 大图标、从 128 到 16 像素的缩放效果，以及菜单栏单色图标在浅色和深色菜单栏里的样子。菜单栏是这个应用最常露面的地方，小尺寸能不能认出来比大图更要紧。</p>
+  </header>
+
+  <section class="round2" aria-labelledby="r2-title">
+    <div class="r2-head">
+      <h2 id="r2-title">渡 Ferry · 更亮的配色</h2>
+      <p>图形不变，只换颜色。最左边是第一轮的深青色，作为对照。</p>
+    </div>
+    <div class="desk r2-desk"><div class="dock" id="r2-dock"></div></div>
+    <div class="palettes" id="palettes"></div>
+  </section>
+
+  <div class="eyebrow" style="margin-top:8px">第一轮 · 五个候选</div>
+
+  <div class="desk" aria-label="五个图标在 Dock 中的效果">
+    <nav class="dock">
+      <a href="#ferry"><svg viewBox="0 0 100 100" role="img" aria-label="渡"><use href="#app-ferry"/></svg><span>渡</span></a>
+      <a href="#glint"><svg viewBox="0 0 100 100" role="img" aria-label="闪译"><use href="#app-glint"/></svg><span>闪译</span></a>
+      <a href="#reed"><svg viewBox="0 0 100 100" role="img" aria-label="一苇"><use href="#app-reed"/></svg><span>一苇</span></a>
+      <a href="#lumen"><svg viewBox="0 0 100 100" role="img" aria-label="流明"><use href="#app-lumen"/></svg><span>流明</span></a>
+      <a href="#duet"><svg viewBox="0 0 100 100" role="img" aria-label="对译"><use href="#app-duet"/></svg><span>对译</span></a>
+    </nav>
+  </div>
+
+  <!-- Candidates are rendered from data so every sheet has the same structure -->
+  <main id="list" class="wrap" style="gap:24px"></main>
+
+  <section class="verdict">
+    <h2>我的倾向</h2>
+    <p><strong>首选「渡 Ferry」。</strong>一个字，读得出来也写得出来，意思直接对应翻译这件事；图标是帆船，在 Dock 和菜单栏里都和系统自带的翻译图标区分得开。</p>
+    <p><strong>备选「一苇 Reed」。</strong>想要更有个性、更安静的气质就选它。它是唯一的浅色图标，放在一排深色图标里最显眼。</p>
+    <p>名字定下来后，还需要查一下 App Store 和商标有没有重名，这一步我还没做。</p>
+  </section>
+</div>
+
+<script>
+const candidates = [
+  {
+    id: "ferry", zh: "渡", en: "Ferry", pick: "首选",
+    pitch: "翻译就是摆渡，把一句话从此岸送到彼岸。英文 translate 的拉丁词源本身就是“带过去”。",
+    icon: "一叶帆船压在两道水波上。主帆米白，前帆橙色，深青色底。",
+    bar: "帆加一道波浪，16 像素下轮廓依然清楚。",
+    plus: "单字好记，中英文意思一致；和“A/译”这类常见翻译图标完全不同。",
+    risk: "Ferry 是常用词，英文名需要查重；单字“渡”在 App Store 搜索时不够独特，可写作「渡 Ferry」。"
+  },
+  {
+    id: "glint", zh: "闪译", en: "Glint", pick: "",
+    pitch: "强调快：双击 ⌘C，译文一闪就出来。一大一小两颗星芒，对应“按两下”。",
+    icon: "琥珀黄底，深色星芒，在 Dock 里非常醒目。",
+    bar: "两颗星芒，菜单栏里辨识度高。",
+    plus: "名字直接说出卖点（快），用户一看就懂产品是做什么的。",
+    risk: "星芒图形在 AI 产品里已经很常见，个性稍弱。"
+  },
+  {
+    id: "reed", zh: "一苇", en: "Reed", pick: "备选",
+    pitch: "取自“一苇渡江”：一根芦苇就能过江。对应这个应用的轻：不占 Dock，常驻菜单栏，随叫随到。",
+    icon: "水墨一笔芦苇，脚下一圈涟漪，右下角一枚朱红印章，浅灰绿宣纸底。",
+    bar: "一笔芦苇加涟漪，线条偏细，菜单栏里比其他几个略轻。",
+    plus: "最有东方气质，整排图标里唯一的浅色款，很难被认错。",
+    risk: "典故要稍作解释；浅色图标放在浅色壁纸上会弱一点。"
+  },
+  {
+    id: "lumen", zh: "流明", en: "Lumen", pick: "",
+    pitch: "从 Lumi 延伸而来。流明是光的单位，“流”又对应大模型的流式输出：一个光点吐出一行行文字。",
+    icon: "深靛蓝夜空，暖色光球，右边三行逐渐变短的文字。",
+    bar: "光点加三条线；缩小后有点像“列表”图标。",
+    plus: "保留了现有名字的“光”，改动最小，老用户不陌生。",
+    risk: "和现在的名字太接近，如果你是不喜欢 Lumi 本身，这个解决不了问题。"
+  },
+  {
+    id: "duet", zh: "对译", en: "Duet", pick: "",
+    pitch: "两个中文直角引号「」一蓝一红，像两种语言在对话。“对”既是对照，也是“对的”。",
+    icon: "浅色底，蓝色「 和红色 」拼成一个开口的方框。",
+    bar: "两个直角引号，几何感强，16 像素也很利落。",
+    plus: "直角引号是中文独有的标点，图标一眼带出中英互译的身份。",
+    risk: "Duet 也是常用词，有同名应用的可能；图形偏抽象，需要配合名字理解。"
+  }
+];
+
+/* Round 2: brighter palettes for Ferry. top/bottom = background gradient, sail = main sail + hull, jib = small sail, wave = wave lines */
+const palettes = [
+  { id: "orig",     zh: "深青", note: "第一轮原版，作为对照。", top: "#14606A", bottom: "#0A2C34", sail: "#F4EBD6", jib: "#F2A65A", wave: "#F4EBD6" },
+  { id: "lagoon",   zh: "青碧", note: "保留青色这个身份，整体提亮两档，前帆换成珊瑚橙。", top: "#3FD6C6", bottom: "#0F97A8", sail: "#FFFFFF", jib: "#FF8A5B", wave: "#FFFFFF", rec: true },
+  { id: "sky",      zh: "晴空", note: "蓝天白帆配黄色前帆，最明快，也最接近 macOS 自带应用的感觉。", top: "#56C5FA", bottom: "#1F7FE5", sail: "#FFFFFF", jib: "#FFCB3D", wave: "#FFFFFF" },
+  { id: "sunrise",  zh: "日出", note: "暖橙底，前帆用深青色呼应原版，在一排冷色图标里最跳。", top: "#FFC76E", bottom: "#FF6E5A", sail: "#FFFFFF", jib: "#0F6B7E", wave: "#FFFFFF" },
+  { id: "shallows", zh: "浅湾", note: "浅色水面配深青色船，像白天的海湾，和「一苇」一样走浅色路线。", top: "#EAF8FB", bottom: "#B9E6EF", sail: "#0E6B7A", jib: "#FF8A4C", wave: "#0E6B7A" }
+];
+const ferryArt = p => `
+  <linearGradient id="g-f-${p.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p.top}"/><stop offset="1" stop-color="${p.bottom}"/></linearGradient>
+  <symbol id="ferry-${p.id}" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="22.4" fill="url(#g-f-${p.id})"/>
+    <path d="M49 19 L49 58 L26 58 Z" fill="${p.sail}"/>
+    <path d="M53 29 L53 58 L71 58 Z" fill="${p.jib}"/>
+    <path d="M23 62 H77 L70 71 H30 Z" fill="${p.sail}"/>
+    <path d="M16 80 q8.5 -5 17 0 t17 0 t17 0 t17 0" fill="none" stroke="${p.wave}" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M24.5 88 q8.5 -4 17 0 t17 0 t17 0" fill="none" stroke="${p.wave}" stroke-opacity=".4" stroke-width="3" stroke-linecap="round"/>
+  </symbol>`;
+document.getElementById("ferry-variants").innerHTML = palettes.map(ferryArt).join("");
+
+document.getElementById("r2-dock").innerHTML = palettes.map(p => `
+  <a href="#pal-${p.id}" class="${p.id === "orig" ? "cur" : ""}"><svg viewBox="0 0 100 100" role="img" aria-label="渡 ${p.zh}"><use href="#ferry-${p.id}"/></svg><span>${p.zh}</span></a>`).join("");
+
+document.getElementById("palettes").innerHTML = palettes.map(p => `
+  <article class="pal${p.rec ? " rec" : ""}" id="pal-${p.id}">
+    <svg class="mid" viewBox="0 0 100 100" role="img" aria-label="渡 ${p.zh}配色"><use href="#ferry-${p.id}"/></svg>
+    <h3>${p.zh}${p.rec ? '<span class="tag pick">推荐</span>' : ""}${p.id === "orig" ? '<span class="tag">原版</span>' : ""}</h3>
+    <div class="swatches" aria-hidden="true">${[p.top, p.bottom, p.sail, p.jib].map(c => `<i style="background:${c}"></i>`).join("")}</div>
+    <div class="ladder">${[32, 16].map(s => `<figure><svg width="${s}" height="${s}" viewBox="0 0 100 100" aria-hidden="true"><use href="#ferry-${p.id}"/></svg><figcaption>${s}px</figcaption></figure>`).join("")}</div>
+    <p>${p.note}</p>
+  </article>`).join("");
+
+const list = document.getElementById("list");
+list.innerHTML = candidates.map(c => `
+  <article class="cand" id="${c.id}">
+    <div class="hero-icon">
+      <svg class="big" viewBox="0 0 100 100" role="img" aria-label="${c.zh} 应用图标"><use href="#app-${c.id}"/></svg>
+      <div class="ladder" aria-label="缩放效果">
+        ${[64, 32, 16].map(s => `<figure><svg width="${s}" height="${s}" viewBox="0 0 100 100" aria-hidden="true"><use href="#app-${c.id}"/></svg><figcaption>${s}px</figcaption></figure>`).join("")}
+      </div>
+    </div>
+    <div class="info">
+      <div class="name-row">
+        <span class="zh">${c.zh}</span><span class="en">${c.en}</span>
+        ${c.pick ? `<span class="tag pick">${c.pick}</span>` : ""}
+      </div>
+      <p class="pitch">${c.pitch}</p>
+      <div class="bars">
+        <div class="menubar light">
+          <span class="ghost"></span><span class="ghost"></span>
+          <span class="ours"><svg viewBox="0 0 24 24" aria-label="${c.zh} 菜单栏图标（浅色）"><use href="#bar-${c.id}"/></svg></span>
+          <span class="clock">11月20日 周五 14:32</span>
+        </div>
+        <div class="menubar dark">
+          <span class="ghost"></span><span class="ghost"></span>
+          <span class="ours"><svg viewBox="0 0 24 24" aria-label="${c.zh} 菜单栏图标（深色）"><use href="#bar-${c.id}"/></svg></span>
+          <span class="clock">11月20日 周五 14:32</span>
+        </div>
+        <div class="bar-caption">菜单栏图标：${c.bar}</div>
+      </div>
+      <dl class="points">
+        <div><dt>图标</dt><dd>${c.icon}</dd></div>
+        <div><dt>好处</dt><dd>${c.plus}</dd></div>
+        <div><dt>顾虑</dt><dd>${c.risk}</dd></div>
+        <div><dt>应用显示名</dt><dd>${c.zh} ${c.en}</dd></div>
+      </dl>
+    </div>
+  </article>`).join("");
+</script>
+
+</body></html>

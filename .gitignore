@@ -1,0 +1,6 @@
+.build/
+dist/
+.signing/
+.DS_Store
+xcuserdata/
+*.xcuserstate
