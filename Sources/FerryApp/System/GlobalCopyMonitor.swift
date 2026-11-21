@@ -9,7 +9,8 @@ import Observation
 @Observable
 public final class GlobalCopyMonitor {
     public var isAccessibilityTrusted: Bool = false
-    public var onDoubleCopy: ((String, NSPoint) -> Void)?
+    public var isSuppressed: Bool = false
+    public var onDoubleCopy: ((String, NSPoint, NSRunningApplication?) -> Void)?
 
     private var globalMonitor: Any?
     private var localMonitor: Any?
@@ -143,7 +144,7 @@ public final class GlobalCopyMonitor {
     }
 
     private func handleKeyEvent(_ event: NSEvent) {
-        guard settingsStore.settings.doubleCopyEnabled else { return }
+        guard settingsStore.settings.doubleCopyEnabled, !isSuppressed else { return }
         guard !event.isARepeat else { return }
         guard event.keyCode == UInt16(kVK_ANSI_C) else { return }
 
@@ -156,6 +157,9 @@ public final class GlobalCopyMonitor {
         guard detector.registerPress(at: now) else { return }
 
         let mouseLocation = NSEvent.mouseLocation
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        let sourceApp = (frontmost?.processIdentifier == ProcessInfo.processInfo.processIdentifier) ? nil : frontmost
+
         pendingReadTask?.cancel()
         pendingReadTask = Task { [weak self] in
             // Wait briefly for the frontmost app to finish writing the copied string to NSPasteboard
@@ -167,7 +171,7 @@ public final class GlobalCopyMonitor {
             else {
                 return
             }
-            self?.onDoubleCopy?(text, mouseLocation)
+            self?.onDoubleCopy?(text, mouseLocation, sourceApp)
         }
     }
 }

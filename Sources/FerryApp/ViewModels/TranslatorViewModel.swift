@@ -10,11 +10,18 @@ public final class TranslatorSession {
     public var translatedText: String = ""
     public var targetLanguage: TargetLanguage
     public var resolvedLanguage: TargetLanguage = .zhCN
+    public var mode: TranslationMode = .translate
     public var isTranslating: Bool = false
     public var isRecognizingOCR: Bool = false
     public var errorMessage: String? = nil
     public var needsScreenRecordingPermission: Bool = false
+    public var needsAccessibilityPermission: Bool = false
     public var copiedRecently: Bool = false
+
+    /// Language hint passed to SpeechService (`nil` lets TTS auto-detect when a writing mode keeps the source language).
+    public var outputLanguageHint: TargetLanguage? {
+        mode.preservesSourceLanguage(for: targetLanguage) ? nil : resolvedLanguage
+    }
 
     private let settingsStore: SettingsStore
     private let translatorService: LLMTranslatorService
@@ -42,11 +49,13 @@ public final class TranslatorSession {
         cancel()
         errorMessage = nil
         needsScreenRecordingPermission = false
+        needsAccessibilityPermission = false
         isRecognizingOCR = false
         translatedText = ""
         isTranslating = true
 
         let chosenTarget = targetLanguage
+        let chosenMode = mode
         let resolved = chosenTarget.resolvedTarget(for: trimmed)
         resolvedLanguage = resolved
 
@@ -58,7 +67,8 @@ public final class TranslatorSession {
             profile: profile,
             apiKey: apiKey,
             temperature: settingsStore.settings.temperature,
-            wordLookup: settingsStore.settings.wordLookupEnabled
+            wordLookup: settingsStore.settings.wordLookupEnabled,
+            mode: chosenMode
         )
 
         activeTask = Task { [weak self] in
@@ -86,6 +96,7 @@ public final class TranslatorSession {
                             translatedText: finalOutput,
                             targetLanguage: chosenTarget,
                             resolvedLanguage: resolved,
+                            mode: chosenMode,
                             provider: provider,
                             model: profile.effectiveModel
                         )
@@ -107,12 +118,14 @@ public final class TranslatorSession {
         translatedText = ""
         errorMessage = nil
         needsScreenRecordingPermission = false
+        needsAccessibilityPermission = false
         isRecognizingOCR = true
     }
 
     public func finishOCRRecognition(withText text: String) {
         isRecognizingOCR = false
         needsScreenRecordingPermission = false
+        needsAccessibilityPermission = false
         translate(text: text)
     }
 
@@ -121,6 +134,15 @@ public final class TranslatorSession {
         isTranslating = false
         errorMessage = message
         self.needsScreenRecordingPermission = needsScreenRecordingPermission
+        self.needsAccessibilityPermission = false
+    }
+
+    public func failWithAccessibilityError(_ message: String) {
+        isRecognizingOCR = false
+        isTranslating = false
+        errorMessage = message
+        needsScreenRecordingPermission = false
+        needsAccessibilityPermission = true
     }
 
     public func cancel() {
@@ -136,6 +158,7 @@ public final class TranslatorSession {
         translatedText = ""
         errorMessage = nil
         needsScreenRecordingPermission = false
+        needsAccessibilityPermission = false
     }
 
     public func copyTranslation() {
@@ -168,8 +191,10 @@ public final class TranslatorSession {
         translatedText = other.translatedText
         targetLanguage = other.targetLanguage
         resolvedLanguage = other.resolvedLanguage
+        mode = other.mode
         errorMessage = other.errorMessage
         needsScreenRecordingPermission = other.needsScreenRecordingPermission
+        needsAccessibilityPermission = other.needsAccessibilityPermission
         if other.isTranslating {
             translate()
         }
@@ -181,7 +206,9 @@ public final class TranslatorSession {
         translatedText = record.translatedText
         targetLanguage = record.targetLanguage
         resolvedLanguage = record.resolvedLanguage
+        mode = record.mode
         errorMessage = nil
         needsScreenRecordingPermission = false
+        needsAccessibilityPermission = false
     }
 }

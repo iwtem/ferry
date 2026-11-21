@@ -31,7 +31,7 @@ public final class QuickPopupController {
 
     public func show<Content: View>(
         near mousePoint: NSPoint,
-        size: NSSize = NSSize(width: 370, height: 290),
+        size: NSSize = NSSize(width: 404, height: 300),
         @ViewBuilder content: () -> Content
     ) {
         let hostingView = NSHostingView(rootView: content())

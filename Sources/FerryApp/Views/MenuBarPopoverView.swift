@@ -66,6 +66,11 @@ public struct MenuBarPopoverView: View {
                 session.translate()
             }
         }
+        .onChange(of: session.mode) { _, _ in
+            if hasSource {
+                session.translate()
+            }
+        }
     }
 
     // MARK: - Header
@@ -154,7 +159,7 @@ public struct MenuBarPopoverView: View {
                     }
                     .buttonStyle(GlassButtonStyle(height: 24))
                 } else {
-                    Button(l10n.translate) {
+                    Button(l10n.runActionLabel(for: session.mode)) {
                         session.translate()
                     }
                     .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: 24))
@@ -170,10 +175,12 @@ public struct MenuBarPopoverView: View {
     // MARK: - Controls
 
     private var controlRow: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
+            ModePickerControl(selection: $session.mode, compact: true)
             LanguagePickerControl(selection: $session.targetLanguage, compact: true)
 
-            if hasResult || session.isTranslating {
+            if !session.mode.preservesSourceLanguage(for: session.targetLanguage)
+                && (hasResult || session.isTranslating) {
                 Text("→ \(session.resolvedLanguage.shortName(in: lang))")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Stage.textSecondary)
@@ -196,7 +203,7 @@ public struct MenuBarPopoverView: View {
                 speechService: speechService,
                 id: "popover-result",
                 text: session.translatedText,
-                languageHint: session.resolvedLanguage,
+                languageHint: session.outputLanguageHint,
                 help: l10n.speakTranslation,
                 size: 24
             )

@@ -7,11 +7,12 @@ import SwiftUI
 public final class QuickPopupUIState {
     public var isPinned: Bool = false
     public var showFullSource: Bool = false
+    public var sourceAppName: String? = nil
 
     public init() {}
 }
 
-/// DeepL-style compact floating translation popup triggered near the mouse cursor on double Cmd+C.
+/// DeepL-style compact floating translation & writing popup triggered near the cursor.
 public struct QuickPopupView: View {
     @Bindable public var session: TranslatorSession
     public var settingsStore: SettingsStore
@@ -22,6 +23,8 @@ public struct QuickPopupView: View {
     public var onOpenInMainWindow: () -> Void
     public var onOpenSettings: () -> Void
     public var onOpenScreenRecordingSettings: () -> Void
+    public var onOpenAccessibilitySettings: () -> Void
+    public var onReplaceInSourceApp: (() -> Void)?
     public var onClose: () -> Void
 
     public init(
@@ -33,6 +36,8 @@ public struct QuickPopupView: View {
         onOpenInMainWindow: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
         onOpenScreenRecordingSettings: @escaping () -> Void = {},
+        onOpenAccessibilitySettings: @escaping () -> Void = {},
+        onReplaceInSourceApp: (() -> Void)? = nil,
         onClose: @escaping () -> Void
     ) {
         self.session = session
@@ -43,6 +48,8 @@ public struct QuickPopupView: View {
         self.onOpenInMainWindow = onOpenInMainWindow
         self.onOpenSettings = onOpenSettings
         self.onOpenScreenRecordingSettings = onOpenScreenRecordingSettings
+        self.onOpenAccessibilitySettings = onOpenAccessibilitySettings
+        self.onReplaceInSourceApp = onReplaceInSourceApp
         self.onClose = onClose
     }
 
@@ -56,16 +63,19 @@ public struct QuickPopupView: View {
                 FerryLogo(height: 13)
                     .padding(.trailing, 2)
 
+                ModePickerControl(selection: $session.mode, compact: true)
+
                 LanguagePickerControl(selection: $session.targetLanguage, compact: true)
 
-                if !session.translatedText.isEmpty || session.isTranslating {
+                if !session.mode.preservesSourceLanguage(for: session.targetLanguage)
+                    && (!session.translatedText.isEmpty || session.isTranslating) {
                     Text("→ \(session.resolvedLanguage.shortName(in: lang))")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 4)
 
                 Button {
                     uiState.isPinned.toggle()
@@ -137,6 +147,12 @@ public struct QuickPopupView: View {
                         actionTitle: l10n.openScreenRecordingSettings,
                         onAction: onOpenScreenRecordingSettings
                     )
+                } else if session.needsAccessibilityPermission {
+                    ErrorBannerView(
+                        message: error,
+                        actionTitle: l10n.openAccessibilitySettings,
+                        onAction: onOpenAccessibilitySettings
+                    )
                 } else {
                     ErrorBannerView(
                         message: error,
@@ -184,19 +200,21 @@ public struct QuickPopupView: View {
             SpeechErrorBanner(speechService: speechService)
 
             // Bottom action bar
+            let hasOutput = !session.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             HStack(spacing: 6) {
                 Text("\(settingsStore.settings.activeProvider.shortName(in: lang)) · \(settingsStore.settings.activeProfile.effectiveModel)")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
+                    .truncationMode(.middle)
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 SpeakButton(
                     speechService: speechService,
                     id: "popup-result",
                     text: session.translatedText,
-                    languageHint: session.resolvedLanguage,
+                    languageHint: session.outputLanguageHint,
                     help: l10n.speakTranslation,
                     size: 24
                 )
@@ -224,16 +242,35 @@ public struct QuickPopupView: View {
                     .help(l10n.retranslateTooltip)
                 }
 
+                if let onReplace = onReplaceInSourceApp, uiState.sourceAppName != nil {
+                    Button {
+                        onReplace()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.uturn.left")
+                                .font(.system(size: 10, weight: .bold))
+                            Text(l10n.replaceSelectionButton)
+                        }
+                    }
+                    .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: 24))
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .disabled(!hasOutput || session.isTranslating)
+                    .help(
+                        uiState.sourceAppName.map { l10n.replaceInAppTooltip($0) }
+                            ?? l10n.replaceSelectionTooltip
+                    )
+                }
+
                 CopyResultButton(
                     copied: session.copiedRecently,
-                    disabled: session.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    disabled: !hasOutput
                 ) {
                     session.copyTranslation()
                 }
             }
         }
         .padding(12)
-        .frame(width: 370, height: 290)
+        .frame(width: 404, height: 300)
         .background {
             ZStack {
                 VisualEffectBackground(material: .hudWindow, blendingMode: .behindWindow)
@@ -248,6 +285,11 @@ public struct QuickPopupView: View {
                 .stroke(Color.primary.opacity(0.16), lineWidth: 1)
         )
         .onChange(of: session.targetLanguage) { _, _ in
+            if !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                session.translate()
+            }
+        }
+        .onChange(of: session.mode) { _, _ in
             if !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 session.translate()
             }

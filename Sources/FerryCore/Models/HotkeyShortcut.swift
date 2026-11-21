@@ -45,6 +45,12 @@ public struct HotkeyShortcut: Codable, Equatable, Hashable, Sendable {
         modifiers: [.option, .shift]
     )
 
+    /// Default selection translate / polish & replace shortcut: ⌥⇧R (virtual keyCode 15 = ANSI R).
+    public static let defaultSelectionTranslate = HotkeyShortcut(
+        keyCode: 15,
+        modifiers: [.option, .shift]
+    )
+
     public var isValid: Bool {
         modifiers.hasPrimaryModifier && Self.keyLabel(for: keyCode) != nil
     }

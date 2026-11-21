@@ -83,7 +83,8 @@ public struct SettingsView: View {
     }
 
     private var needsPermissionAttention: Bool {
-        (settingsStore.settings.doubleCopyEnabled && !copyMonitor.isAccessibilityTrusted)
+        ((settingsStore.settings.doubleCopyEnabled || settingsStore.settings.selectionShortcutEnabled)
+            && !copyMonitor.isAccessibilityTrusted)
             || (settingsStore.settings.screenshotOCREnabled && !screenCaptureService.hasScreenRecordingPermission)
     }
 
@@ -369,6 +370,8 @@ public struct SettingsView: View {
 
     private var shortcutPane: some View {
         let doubleCopyEnabled = settingsStore.settings.doubleCopyEnabled
+        let selectionEnabled = settingsStore.settings.selectionShortcutEnabled
+        let selectionShortcut = settingsStore.settings.selectionShortcut
         let screenshotEnabled = settingsStore.settings.screenshotOCREnabled
         let shortcut = settingsStore.settings.screenshotOCRShortcut
         let trusted = copyMonitor.isAccessibilityTrusted
@@ -423,6 +426,55 @@ public struct SettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
+                GlassLabel(l10n.selectionReplaceSectionLabel)
+                GlassCard {
+                    GlassRow(title: l10n.selectionShortcutToggle, caption: l10n.selectionShortcutToggleCaption) {
+                        GlassToggle(isOn: Binding(
+                            get: { settingsStore.settings.selectionShortcutEnabled },
+                            set: { newValue in
+                                withAnimation(FerryMotion.animation(FerryMotion.quick)) {
+                                    settingsStore.settings.selectionShortcutEnabled = newValue
+                                }
+                            }
+                        ))
+                    }
+
+                    GlassRow(
+                        title: l10n.screenshotOCRHotkeyRow,
+                        caption: l10n.screenshotOCRHotkeyCaption,
+                        divider: false
+                    ) {
+                        HStack(spacing: 6) {
+                            ShortcutRecorderButton(
+                                shortcut: Binding(
+                                    get: { settingsStore.settings.selectionShortcut },
+                                    set: { settingsStore.settings.selectionShortcut = $0 }
+                                ),
+                                onRecordingChange: { recording in
+                                    hotkeyService.setPaused(recording)
+                                }
+                            )
+                            if selectionShortcut != .defaultSelectionTranslate {
+                                GlassIconButton(systemName: "arrow.uturn.backward", help: l10n.resetDefaultSelectionShortcutHelp) {
+                                    settingsStore.settings.selectionShortcut = .defaultSelectionTranslate
+                                }
+                            }
+                        }
+                        .disabled(!selectionEnabled)
+                        .opacity(selectionEnabled ? 1 : 0.4)
+                    }
+
+                    if hotkeyService.selectionRegistrationFailed && selectionEnabled {
+                        Rectangle().fill(Stage.hairline).frame(height: 1)
+                        StatusLine(text: l10n.shortcutConflictWarning, success: false)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
                 GlassLabel(l10n.screenshotOCRSectionLabel)
                 GlassCard {
                     GlassRow(title: l10n.screenshotOCRToggle, caption: l10n.screenshotOCRToggleCaption) {
@@ -470,7 +522,7 @@ public struct SettingsView: View {
                         .buttonStyle(GlassButtonStyle(kind: .glow, hue: .coral))
                     }
 
-                    if hotkeyService.registrationFailed && screenshotEnabled {
+                    if hotkeyService.screenshotRegistrationFailed && screenshotEnabled {
                         Rectangle().fill(Stage.hairline).frame(height: 1)
                         StatusLine(text: l10n.shortcutConflictWarning, success: false)
                             .padding(.horizontal, 16)

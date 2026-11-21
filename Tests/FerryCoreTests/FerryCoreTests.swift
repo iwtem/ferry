@@ -222,6 +222,8 @@ struct FerryCoreTests {
         #expect(settings.language == .system)
         #expect(settings.screenshotOCREnabled == true)
         #expect(settings.screenshotOCRShortcut == .defaultScreenshotOCR)
+        #expect(settings.selectionShortcutEnabled == true)
+        #expect(settings.selectionShortcut == .defaultSelectionTranslate)
         #expect(settings.autoCheckForUpdates == true)
         #expect(settings.autoDownloadUpdates == true)
         #expect(settings.skippedUpdateVersion == nil)
@@ -436,6 +438,74 @@ struct FerryCoreTests {
                 == "https://api.github.com/repos/iwtem/ferry/releases/latest")
         #expect(UpdateFeedParser.parseSHA256(from: "\(digestHex)  Ferry-0.2.0.zip") == digestHex)
         #expect(UpdateFeedParser.parseSHA256(from: "too-short-abc") == nil)
+    }
+
+    @Test("Writing modes preserve source language on .auto, skip word lookup, and build dedicated prompts")
+    func testWritingModePayloadsAndRecords() throws {
+        #expect(TranslationMode.translate.isWritingMode == false)
+        #expect(TranslationMode.polish.preservesSourceLanguage(for: .auto) == true)
+        #expect(TranslationMode.polish.preservesSourceLanguage(for: .en) == false)
+        #expect(TranslationMode.translate.preservesSourceLanguage(for: .auto) == false)
+
+        // Polish mode with nil target (auto) preserves source language and never triggers dictionary lookup
+        let polishPayload = LLMTranslatorService.makePayload(
+            text: "raven",
+            resolvedTarget: nil,
+            model: "deepseek-chat",
+            temperature: 0.2,
+            stream: true,
+            wordLookup: true,
+            mode: .polish
+        )
+        let polishMessages = try #require(polishPayload["messages"] as? [[String: String]])
+        #expect(polishMessages[0]["content"]?.contains("original language") == true)
+        #expect(polishMessages[0]["content"]?.contains("bilingual dictionary") == false)
+
+        // Concise mode with explicit target language translates & rewrites directly into that language
+        let conciseEN = LLMTranslatorService.makePayload(
+            text: "麻烦尽快帮我看一下这个 PR",
+            resolvedTarget: .en,
+            model: "deepseek-chat",
+            temperature: 0.2,
+            stream: true,
+            wordLookup: false,
+            mode: .concise
+        )
+        let conciseMessages = try #require(conciseEN["messages"] as? [[String: String]])
+        #expect(conciseMessages[0]["content"]?.contains("workplace communication") == true)
+        #expect(conciseMessages[0]["content"]?.contains("English") == true)
+
+        // Grammar & Academic modes emit their specialized system prompts
+        let grammarPayload = LLMTranslatorService.makePayload(
+            text: "He go to work.",
+            resolvedTarget: nil,
+            model: "deepseek-chat",
+            temperature: 0.2,
+            stream: false,
+            mode: .grammar
+        )
+        let grammarMessages = try #require(grammarPayload["messages"] as? [[String: String]])
+        #expect(grammarMessages[0]["content"]?.contains("proofreader") == true)
+
+        let academicPayload = LLMTranslatorService.makePayload(
+            text: "This works well.",
+            resolvedTarget: nil,
+            model: "deepseek-chat",
+            temperature: 0.2,
+            stream: false,
+            mode: .academic
+        )
+        let academicMessages = try #require(academicPayload["messages"] as? [[String: String]])
+        #expect(academicMessages[0]["content"]?.contains("academic") == true)
+
+        // Legacy TranslationRecord without `mode` field decodes cleanly as `.translate`
+        let legacyRecordJSON = #"""
+        {"id":"11111111-1111-1111-1111-111111111111","sourceText":"Hello","translatedText":"你好",
+         "targetLanguage":"auto","resolvedLanguage":"zh-CN","provider":"deepseek","model":"deepseek-chat",
+         "createdAt":0}
+        """#
+        let decodedRecord = try JSONDecoder().decode(TranslationRecord.self, from: Data(legacyRecordJSON.utf8))
+        #expect(decodedRecord.mode == .translate)
     }
 
     @Test("OCRService recognizes rendered text on a CGImage via Apple Vision")

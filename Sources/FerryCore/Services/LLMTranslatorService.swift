@@ -83,21 +83,25 @@ public struct TranslationRequestConfig: Sendable {
     public let profile: ProviderProfile
     public let apiKey: String
     public let temperature: Double
-    /// Answer single words and short terms with a compact dictionary entry.
+    /// Answer single words and short terms with a compact dictionary entry (in `.translate` mode).
     public let wordLookup: Bool
+    /// Translation or writing-refinement preset.
+    public let mode: TranslationMode
 
     public init(
         provider: ProviderKind,
         profile: ProviderProfile,
         apiKey: String,
         temperature: Double = 0.2,
-        wordLookup: Bool = false
+        wordLookup: Bool = false,
+        mode: TranslationMode = .translate
     ) {
         self.provider = provider
         self.profile = profile
         self.apiKey = apiKey
         self.temperature = temperature
         self.wordLookup = wordLookup
+        self.mode = mode
     }
 }
 
@@ -121,7 +125,9 @@ public final class LLMTranslatorService: Sendable {
         config: TranslationRequestConfig
     ) -> AsyncThrowingStream<String, Error> {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedTarget = targetLanguage.resolvedTarget(for: trimmed)
+        let resolvedTarget: TargetLanguage? = config.mode.preservesSourceLanguage(for: targetLanguage)
+            ? nil
+            : targetLanguage.resolvedTarget(for: trimmed)
 
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -282,7 +288,7 @@ public final class LLMTranslatorService: Sendable {
 
     private func buildRequest(
         text: String,
-        resolvedTarget: TargetLanguage,
+        resolvedTarget: TargetLanguage?,
         config: TranslationRequestConfig,
         stream: Bool,
         allowWordLookup: Bool = true
@@ -309,7 +315,8 @@ public final class LLMTranslatorService: Sendable {
             model: config.profile.effectiveModel,
             temperature: config.temperature,
             stream: stream,
-            wordLookup: config.wordLookup && allowWordLookup
+            wordLookup: config.wordLookup && allowWordLookup,
+            mode: config.mode
         )
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
         return request
@@ -323,26 +330,33 @@ public final class LLMTranslatorService: Sendable {
 
     static func makePayload(
         text: String,
-        resolvedTarget: TargetLanguage,
+        resolvedTarget: TargetLanguage?,
         model: String,
         temperature: Double,
         stream: Bool,
-        wordLookup: Bool = false
+        wordLookup: Bool = false,
+        mode: TranslationMode = .translate
     ) -> [String: Any] {
         var payload: [String: Any] = ["model": model, "stream": stream]
 
         if isDedicatedTranslationModel(model) {
+            let mtTarget = resolvedTarget ?? TargetLanguage.auto.resolvedTarget(for: text)
             payload["messages"] = [["role": "user", "content": text]]
             payload["translation_options"] = [
                 "source_lang": "auto",
-                "target_lang": resolvedTarget.qwenMTLanguageName
+                "target_lang": mtTarget.qwenMTLanguageName
             ]
             return payload
         }
 
-        payload["messages"] = wordLookup && TranslationPrompt.isLookupTerm(text)
-            ? TranslationPrompt.dictionaryMessages(term: text, target: resolvedTarget)
-            : TranslationPrompt.textMessages(text: text, target: resolvedTarget)
+        if mode == .translate,
+           wordLookup,
+           let target = resolvedTarget,
+           TranslationPrompt.isLookupTerm(text) {
+            payload["messages"] = TranslationPrompt.dictionaryMessages(term: text, target: target)
+        } else {
+            payload["messages"] = TranslationPrompt.textMessages(text: text, target: resolvedTarget, mode: mode)
+        }
         // Reasoning models (e.g. deepseek-reasoner) reject or ignore temperature.
         if !model.lowercased().contains("reasoner") {
             payload["temperature"] = temperature

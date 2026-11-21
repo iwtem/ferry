@@ -143,9 +143,7 @@ public struct DesktopMiniWidgetView: View {
 
             // Compact footer
             HStack(spacing: 6) {
-                Text(settingsStore.settings.activeProvider.shortName(in: lang))
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.tertiary)
+                ModePickerControl(selection: $session.mode, compact: true)
 
                 Spacer()
 
@@ -162,7 +160,7 @@ public struct DesktopMiniWidgetView: View {
                     speechService: speechService,
                     id: "widget-result",
                     text: session.translatedText,
-                    languageHint: session.resolvedLanguage,
+                    languageHint: session.outputLanguageHint,
                     help: l10n.speakTranslation,
                     size: 24
                 )
@@ -191,6 +189,11 @@ public struct DesktopMiniWidgetView: View {
                 .stroke(Color.primary.opacity(0.16), lineWidth: 1)
         )
         .onChange(of: session.targetLanguage) { _, _ in
+            if !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                session.translate()
+            }
+        }
+        .onChange(of: session.mode) { _, _ in
             if !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 session.translate()
             }

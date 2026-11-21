@@ -76,6 +76,28 @@ struct L10n: Sendable {
 
     var translate: String { t(zh: "翻译", en: "Translate") }
     var translateShortcutHelp: String { t(zh: "翻译 (⌘⏎)", en: "Translate (⌘⏎)") }
+    func runActionLabel(for mode: TranslationMode) -> String {
+        switch mode {
+        case .translate: return t(zh: "翻译", en: "Translate")
+        case .polish: return t(zh: "润色", en: "Polish")
+        case .grammar: return t(zh: "纠错", en: "Fix")
+        case .concise: return t(zh: "精简", en: "Rewrite")
+        case .academic: return t(zh: "改写", en: "Rewrite")
+        }
+    }
+    func runActionShortcutHelp(for mode: TranslationMode) -> String {
+        "\(runActionLabel(for: mode)) (⌘⏎)"
+    }
+    var keepSourceLanguageLabel: String { t(zh: "保持原语言", en: "Same language") }
+    var replaceSelectionButton: String { t(zh: "替换原文", en: "Replace") }
+    var replaceSelectionTooltip: String {
+        t(zh: "一键替换回原输入框 (⌘⏎)，并还原剪贴板", en: "Replace selection in original app (⌘⏎) & restore clipboard")
+    }
+    func replaceInAppTooltip(_ appName: String) -> String {
+        t(zh: "一键替换回「\(appName)」(⌘⏎)", en: "Replace selection in \(appName) (⌘⏎)")
+    }
+    var openAccessibilitySettings: String { t(zh: "打开辅助功能设置", en: "Open Accessibility Settings") }
+    var modePickerTooltip: String { t(zh: "切换翻译 / 写作润色模式", en: "Switch translation or writing mode") }
     var stop: String { t(zh: "停止", en: "Stop") }
     var clear: String { t(zh: "清空", en: "Clear") }
     var copy: String { t(zh: "复制", en: "Copy") }
@@ -248,6 +270,13 @@ struct L10n: Sendable {
     var doubleCopyToggle: String { t(zh: "双击 ⌘C 翻译", en: "Double ⌘C to Translate") }
     var doubleCopyInterval: String { t(zh: "按键间隔", en: "Double-Press Interval") }
     var doubleCopyIntervalCaption: String { t(zh: "按得慢就调大一点", en: "Increase if you press slowly") }
+
+    var selectionReplaceSectionLabel: String { t(zh: "划词润色与原地替换", en: "REWRITE & REPLACE IN PLACE") }
+    var selectionShortcutToggle: String { t(zh: "选区翻译/润色快捷键", en: "Selection Translate / Polish Shortcut") }
+    var selectionShortcutToggleCaption: String {
+        t(zh: "在任意输入框选中文字按快捷键，不污染剪贴板并支持一键替换回原文", en: "Capture selected text without overwriting clipboard, then replace in place")
+    }
+    var resetDefaultSelectionShortcutHelp: String { t(zh: "恢复默认 (⌥⇧R)", en: "Reset to Default (⌥⇧R)") }
 
     var screenshotOCRSectionLabel: String { t(zh: "截图 OCR 翻译", en: "SCREENSHOT OCR") }
     var screenshotOCRToggle: String { t(zh: "截图翻译快捷键", en: "Screenshot OCR Shortcut") }

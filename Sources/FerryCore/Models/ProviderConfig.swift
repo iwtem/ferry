@@ -207,6 +207,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var screenshotOCREnabled: Bool
     /// Global shortcut for interactive screenshot OCR translation (defaults to ⌥⇧S).
     public var screenshotOCRShortcut: HotkeyShortcut
+    /// Enable the global shortcut for capturing selected text to translate/polish & replace in place.
+    public var selectionShortcutEnabled: Bool
+    /// Global shortcut for selection translate / polish & replace (defaults to ⌥⇧R).
+    public var selectionShortcut: HotkeyShortcut
     /// Automatically check GitHub Releases for newer versions on launch and periodically.
     public var autoCheckForUpdates: Bool
     /// Automatically download verified release archives in the background when a new version is found.
@@ -232,6 +236,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         language: AppLanguage = .system,
         screenshotOCREnabled: Bool = true,
         screenshotOCRShortcut: HotkeyShortcut = .defaultScreenshotOCR,
+        selectionShortcutEnabled: Bool = true,
+        selectionShortcut: HotkeyShortcut = .defaultSelectionTranslate,
         autoCheckForUpdates: Bool = true,
         autoDownloadUpdates: Bool = true,
         skippedUpdateVersion: String? = nil
@@ -249,6 +255,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.language = language
         self.screenshotOCREnabled = screenshotOCREnabled
         self.screenshotOCRShortcut = screenshotOCRShortcut
+        self.selectionShortcutEnabled = selectionShortcutEnabled
+        self.selectionShortcut = selectionShortcut
         self.autoCheckForUpdates = autoCheckForUpdates
         self.autoDownloadUpdates = autoDownloadUpdates
         self.skippedUpdateVersion = skippedUpdateVersion
@@ -258,6 +266,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case activeProvider, profiles, defaultTargetLanguage, doubleCopyEnabled, doubleCopyIntervalMs
         case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, speech, appearance, language
         case screenshotOCREnabled, screenshotOCRShortcut
+        case selectionShortcutEnabled, selectionShortcut
         case autoCheckForUpdates, autoDownloadUpdates, skippedUpdateVersion
     }
 
@@ -279,6 +288,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language
         screenshotOCREnabled = try c.decodeIfPresent(Bool.self, forKey: .screenshotOCREnabled) ?? defaults.screenshotOCREnabled
         screenshotOCRShortcut = try c.decodeIfPresent(HotkeyShortcut.self, forKey: .screenshotOCRShortcut) ?? defaults.screenshotOCRShortcut
+        selectionShortcutEnabled = try c.decodeIfPresent(Bool.self, forKey: .selectionShortcutEnabled) ?? defaults.selectionShortcutEnabled
+        selectionShortcut = try c.decodeIfPresent(HotkeyShortcut.self, forKey: .selectionShortcut) ?? defaults.selectionShortcut
         autoCheckForUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoCheckForUpdates) ?? defaults.autoCheckForUpdates
         autoDownloadUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoDownloadUpdates) ?? defaults.autoDownloadUpdates
         skippedUpdateVersion = try c.decodeIfPresent(String.self, forKey: .skippedUpdateVersion) ?? defaults.skippedUpdateVersion

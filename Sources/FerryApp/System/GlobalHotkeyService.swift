@@ -9,18 +9,31 @@ import Observation
 @Observable
 public final class GlobalHotkeyService {
     public var onScreenshotOCR: (() -> Void)?
-    public var registrationFailed: Bool = false
+    public var onSelectionTranslate: (() -> Void)?
+
+    public var screenshotRegistrationFailed: Bool = false
+    public var selectionRegistrationFailed: Bool = false
+
+    public var registrationFailed: Bool {
+        screenshotRegistrationFailed || selectionRegistrationFailed
+    }
 
     private var eventHandlerRef: EventHandlerRef?
     private var screenshotHotKeyRef: EventHotKeyRef?
-    private var activeShortcut: HotkeyShortcut?
-    private var isEnabled: Bool = false
+    private var selectionHotKeyRef: EventHotKeyRef?
+
+    private var screenshotEnabled: Bool = false
+    private var screenshotShortcut: HotkeyShortcut?
+    private var selectionEnabled: Bool = false
+    private var selectionShortcut: HotkeyShortcut?
+
     private var isPaused: Bool = false
     private var settingsObserver: NSObjectProtocol?
     private weak var settingsStore: SettingsStore?
 
     private static let hotKeySignature: OSType = 0x46525259 // 'FRRY'
     private static let screenshotHotKeyID: UInt32 = 1
+    private static let selectionHotKeyID: UInt32 = 2
 
     public init() {}
 
@@ -49,7 +62,7 @@ public final class GlobalHotkeyService {
             NotificationCenter.default.removeObserver(settingsObserver)
             self.settingsObserver = nil
         }
-        unregisterScreenshotHotKey()
+        unregisterAllHotKeys()
         if let eventHandlerRef {
             RemoveEventHandler(eventHandlerRef)
             self.eventHandlerRef = nil
@@ -57,28 +70,47 @@ public final class GlobalHotkeyService {
     }
 
     /// Temporarily unregisters active hotkeys while the user records a new shortcut in Settings,
-    /// so pressing the current shortcut is captured by the recorder instead of triggering capture.
+    /// so pressing the current shortcut is captured by the recorder instead of firing an action.
     public func setPaused(_ paused: Bool) {
         guard isPaused != paused else { return }
         isPaused = paused
-        applyRegistration()
+        applyRegistrations()
     }
 
     public func sync(with settings: AppSettings) {
-        isEnabled = settings.screenshotOCREnabled
-        activeShortcut = settings.screenshotOCRShortcut
-        applyRegistration()
+        screenshotEnabled = settings.screenshotOCREnabled
+        screenshotShortcut = settings.screenshotOCRShortcut
+        selectionEnabled = settings.selectionShortcutEnabled
+        selectionShortcut = settings.selectionShortcut
+        applyRegistrations()
     }
 
-    private func applyRegistration() {
-        unregisterScreenshotHotKey()
-        registrationFailed = false
+    private func applyRegistrations() {
+        unregisterAllHotKeys()
+        screenshotRegistrationFailed = false
+        selectionRegistrationFailed = false
 
-        guard isEnabled, !isPaused, let shortcut = activeShortcut, shortcut.isValid else {
-            return
+        guard !isPaused else { return }
+
+        if screenshotEnabled, let shortcut = screenshotShortcut, shortcut.isValid {
+            if let ref = register(shortcut: shortcut, id: Self.screenshotHotKeyID) {
+                screenshotHotKeyRef = ref
+            } else {
+                screenshotRegistrationFailed = true
+            }
         }
 
-        let hotKeyID = EventHotKeyID(signature: Self.hotKeySignature, id: Self.screenshotHotKeyID)
+        if selectionEnabled, let shortcut = selectionShortcut, shortcut.isValid {
+            if let ref = register(shortcut: shortcut, id: Self.selectionHotKeyID) {
+                selectionHotKeyRef = ref
+            } else {
+                selectionRegistrationFailed = true
+            }
+        }
+    }
+
+    private func register(shortcut: HotkeyShortcut, id: UInt32) -> EventHotKeyRef? {
+        let hotKeyID = EventHotKeyID(signature: Self.hotKeySignature, id: id)
         var ref: EventHotKeyRef?
         let status = RegisterEventHotKey(
             shortcut.keyCode,
@@ -88,20 +120,17 @@ public final class GlobalHotkeyService {
             0,
             &ref
         )
-
-        if status == noErr, let ref {
-            screenshotHotKeyRef = ref
-            registrationFailed = false
-        } else {
-            screenshotHotKeyRef = nil
-            registrationFailed = true
-        }
+        return status == noErr ? ref : nil
     }
 
-    private func unregisterScreenshotHotKey() {
+    private func unregisterAllHotKeys() {
         if let ref = screenshotHotKeyRef {
             UnregisterEventHotKey(ref)
             screenshotHotKeyRef = nil
+        }
+        if let ref = selectionHotKeyRef {
+            UnregisterEventHotKey(ref)
+            selectionHotKeyRef = nil
         }
     }
 
@@ -153,8 +182,13 @@ public final class GlobalHotkeyService {
 
     private func handleHotKey(id: UInt32) {
         guard !isPaused else { return }
-        if id == Self.screenshotHotKeyID {
+        switch id {
+        case Self.screenshotHotKeyID:
             onScreenshotOCR?()
+        case Self.selectionHotKeyID:
+            onSelectionTranslate?()
+        default:
+            break
         }
     }
 

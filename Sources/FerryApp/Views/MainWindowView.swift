@@ -72,6 +72,7 @@ public struct MainWindowView: View {
 
             HStack(spacing: 0) {
                 VStack(spacing: 10) {
+                    modeBar
                     languageBar
                     HStack(spacing: 12) {
                         sourceCard
@@ -104,6 +105,11 @@ public struct MainWindowView: View {
         .tint(FerryTheme.accent)
         .ferryLocalized(lang)
         .onChange(of: session.targetLanguage) { _, _ in
+            if hasSource {
+                session.translate()
+            }
+        }
+        .onChange(of: session.mode) { _, _ in
             if hasSource {
                 session.translate()
             }
@@ -145,7 +151,18 @@ public struct MainWindowView: View {
         .background(WindowDragArea())
     }
 
-    // MARK: - Language bar
+    // MARK: - Mode bar & Language bar
+
+    private var modeBar: some View {
+        HStack(spacing: 10) {
+            ModePillStrip(selection: $session.mode)
+            Spacer(minLength: 8)
+            Text(session.mode.subtitle(in: lang))
+                .font(.system(size: 11.5))
+                .foregroundStyle(Stage.textTertiary)
+                .lineLimit(1)
+        }
+    }
 
     private var languageBar: some View {
         HStack(spacing: 0) {
@@ -179,7 +196,11 @@ public struct MainWindowView: View {
 
             HStack {
                 LanguagePickerControl(selection: $session.targetLanguage)
-                if session.targetLanguage == .auto && (hasResult || session.isTranslating) {
+                if session.mode.preservesSourceLanguage(for: session.targetLanguage) {
+                    Text(l10n.keepSourceLanguageLabel)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                } else if session.targetLanguage == .auto && (hasResult || session.isTranslating) {
                     Text(l10n.translatedTo(session.resolvedLanguage))
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
@@ -256,7 +277,7 @@ public struct MainWindowView: View {
                             session.translate()
                         } label: {
                             HStack(spacing: 6) {
-                                Text(l10n.translate)
+                                Text(l10n.runActionLabel(for: session.mode))
                                 Image(systemName: "arrow.right")
                                     .font(.system(size: 11, weight: .bold))
                             }
@@ -265,7 +286,7 @@ public struct MainWindowView: View {
                         .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: 30))
                         .keyboardShortcut(.return, modifiers: .command)
                         .disabled(!hasSource)
-                        .help(l10n.translateShortcutHelp)
+                        .help(l10n.runActionShortcutHelp(for: session.mode))
                     }
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
@@ -349,7 +370,7 @@ public struct MainWindowView: View {
                     speechService: speechService,
                     id: "main-result",
                     text: session.translatedText,
-                    languageHint: session.resolvedLanguage,
+                    languageHint: session.outputLanguageHint,
                     help: l10n.speakTranslation
                 )
                 CopyResultButton(copied: session.copiedRecently, disabled: !hasResult) {
@@ -449,7 +470,14 @@ public struct MainWindowView: View {
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)
                                     HStack(spacing: 4) {
-                                        Text(l10n.translatedTo(record.resolvedLanguage))
+                                        if record.mode.isWritingMode {
+                                            Text(record.mode.shortName(in: lang))
+                                                .foregroundStyle(FerryTheme.accentText)
+                                            Text("·")
+                                        }
+                                        Text(record.mode.preservesSourceLanguage(for: record.targetLanguage)
+                                             ? l10n.keepSourceLanguageLabel
+                                             : l10n.translatedTo(record.resolvedLanguage))
                                         Text("·")
                                         Text(record.createdAt, format: .relative(presentation: .named))
                                             .environment(\.locale, lang.locale)

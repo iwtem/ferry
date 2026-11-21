@@ -15,7 +15,9 @@ public final class SettingsStore {
                 NotificationCenter.default.post(name: .ferryLanguageDidChange, object: nil)
             }
             if oldValue.screenshotOCREnabled != settings.screenshotOCREnabled
-                || oldValue.screenshotOCRShortcut != settings.screenshotOCRShortcut {
+                || oldValue.screenshotOCRShortcut != settings.screenshotOCRShortcut
+                || oldValue.selectionShortcutEnabled != settings.selectionShortcutEnabled
+                || oldValue.selectionShortcut != settings.selectionShortcut {
                 NotificationCenter.default.post(name: .ferryHotkeySettingsDidChange, object: nil)
             }
             saveSettings()
@@ -104,7 +106,9 @@ public final class SettingsStore {
 
     public func recordTranslation(_ record: TranslationRecord) {
         var updated = recentRecords.filter {
-            !($0.sourceText == record.sourceText && $0.resolvedLanguage == record.resolvedLanguage)
+            !($0.sourceText == record.sourceText
+              && $0.resolvedLanguage == record.resolvedLanguage
+              && $0.mode == record.mode)
         }
         updated.insert(record, at: 0)
         if updated.count > 50 {

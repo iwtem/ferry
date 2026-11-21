@@ -231,6 +231,114 @@ public struct LanguagePickerControl: View {
     }
 }
 
+/// Compact dropdown pill for choosing Translation vs. Writing modes (`标准翻译` / `地道润色` / `语法纠错` / `职场简洁` / `学术表达`).
+public struct ModePickerControl: View {
+    @Binding public var selection: TranslationMode
+    public var compact: Bool
+    @Environment(\.appLanguage) private var appLanguage
+
+    public init(selection: Binding<TranslationMode>, compact: Bool = true) {
+        self._selection = selection
+        self.compact = compact
+    }
+
+    public var body: some View {
+        let l10n = L10n(appLanguage)
+        Menu {
+            ForEach(TranslationMode.allCases) { mode in
+                Button {
+                    selection = mode
+                } label: {
+                    HStack {
+                        Image(systemName: mode.symbolName)
+                        Text(mode.displayName(in: appLanguage))
+                        if mode == selection {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: selection.symbolName)
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(selection.isWritingMode ? FerryTheme.accentText : .secondary)
+                Text(compact ? selection.shortName(in: appLanguage) : selection.displayName(in: appLanguage))
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(selection.isWritingMode ? FerryTheme.accentText : .primary)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                selection.isWritingMode ? FerryTheme.accent.opacity(0.14) : Color.primary.opacity(0.06),
+                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(selection.isWritingMode ? FerryTheme.accent.opacity(0.32) : .clear, lineWidth: 1)
+            )
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(l10n.modePickerTooltip)
+    }
+}
+
+/// Inline single-click pill strip for switching translation & writing modes in the Main Window.
+public struct ModePillStrip: View {
+    @Binding public var selection: TranslationMode
+    @Environment(\.appLanguage) private var appLanguage
+
+    public init(selection: Binding<TranslationMode>) {
+        self._selection = selection
+    }
+
+    public var body: some View {
+        HStack(spacing: 4) {
+            ForEach(TranslationMode.allCases) { mode in
+                let isSelected = selection == mode
+                Button {
+                    withAnimation(FerryMotion.animation(FerryMotion.quick)) {
+                        selection = mode
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: mode.symbolName)
+                            .font(.system(size: 10.5, weight: .semibold))
+                        Text(mode.displayName(in: appLanguage))
+                            .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))
+                    }
+                    .foregroundStyle(isSelected ? FerryTheme.accentText : Stage.textSecondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(isSelected ? FerryTheme.accent.opacity(0.15) : Color.clear)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(isSelected ? FerryTheme.accent.opacity(0.35) : Color.clear, lineWidth: 1)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(mode.subtitle(in: appLanguage))
+            }
+        }
+        .padding(3)
+        .background(Stage.controlFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Stage.controlStroke, lineWidth: 1)
+        )
+    }
+}
+
 public struct CopyResultButton: View {
     public let copied: Bool
     public let disabled: Bool

@@ -14,6 +14,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let screenCaptureService = ScreenCaptureService()
     private let hotkeyService = GlobalHotkeyService()
     private let updateService = AppUpdateService()
+    private let textReplacementService = TextReplacementService()
     private lazy var popoverSession = TranslatorSession(settingsStore: settingsStore, translatorService: translatorService)
     private lazy var mainWindowSession = TranslatorSession(settingsStore: settingsStore, translatorService: translatorService)
     private lazy var quickPopupSession = TranslatorSession(settingsStore: settingsStore, translatorService: translatorService)
@@ -25,6 +26,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var languageObserver: NSObjectProtocol?
     private var ocrTask: Task<Void, Never>?
+    private var selectionTask: Task<Void, Never>?
+    private var quickPopupSourceApp: NSRunningApplication?
 
     private let quickPopupController = QuickPopupController()
     private let desktopWidgetController = DesktopMiniWidgetController()
@@ -62,6 +65,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         ocrTask?.cancel()
         ocrTask = nil
+        selectionTask?.cancel()
+        selectionTask = nil
         copyMonitor.stopMonitoring()
         hotkeyService.stop()
         screenCaptureService.stopObserving()
@@ -244,8 +249,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Double Cmd+C Global Monitor & Floating Popup
 
     private func setupGlobalCopyMonitor() {
-        copyMonitor.onDoubleCopy = { [weak self] copiedText, mouseLocation in
-            self?.handleDoubleCopy(text: copiedText, near: mouseLocation)
+        copyMonitor.onDoubleCopy = { [weak self] copiedText, mouseLocation, sourceApp in
+            self?.handleDoubleCopy(text: copiedText, near: mouseLocation, sourceApp: sourceApp)
         }
         copyMonitor.startMonitoring()
     }
@@ -254,13 +259,79 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyService.onScreenshotOCR = { [weak self] in
             self?.triggerScreenshotOCR(destination: .quickPopup)
         }
+        hotkeyService.onSelectionTranslate = { [weak self] in
+            self?.triggerSelectionTranslate()
+        }
         hotkeyService.start(settingsStore: settingsStore)
     }
 
-    private func handleDoubleCopy(text: String, near mouseLocation: NSPoint) {
+    private func handleDoubleCopy(text: String, near mouseLocation: NSPoint, sourceApp: NSRunningApplication?) {
+        quickPopupSourceApp = sourceApp
+        quickPopupUIState.sourceAppName = sourceApp?.localizedName
         quickPopupSession.targetLanguage = settingsStore.settings.defaultTargetLanguage
         quickPopupSession.translate(text: text)
         showQuickPopup(near: mouseLocation)
+    }
+
+    private func triggerSelectionTranslate() {
+        if menuBarPanel.isVisible {
+            menuBarPanel.hide()
+        }
+
+        selectionTask?.cancel()
+        selectionTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let captured = try await self.textReplacementService.captureSelection(copyMonitor: self.copyMonitor)
+                guard !Task.isCancelled else { return }
+                self.quickPopupSourceApp = captured.sourceApp
+                self.quickPopupUIState.sourceAppName = captured.sourceApp?.localizedName
+                self.quickPopupSession.targetLanguage = self.settingsStore.settings.defaultTargetLanguage
+                self.quickPopupSession.translate(text: captured.text)
+                self.showQuickPopup(near: captured.mouseLocation)
+            } catch let replaceError as TextReplacementError {
+                guard !Task.isCancelled else { return }
+                self.quickPopupSourceApp = nil
+                self.quickPopupUIState.sourceAppName = nil
+                if replaceError == .accessibilityRequired {
+                    self.quickPopupSession.failWithAccessibilityError(replaceError.localizedDescription)
+                } else {
+                    self.quickPopupSession.failOCRRecognition(message: replaceError.localizedDescription)
+                }
+                self.showQuickPopup(near: NSEvent.mouseLocation)
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.quickPopupSession.failOCRRecognition(message: error.localizedDescription)
+                self.showQuickPopup(near: NSEvent.mouseLocation)
+            }
+        }
+    }
+
+    private func replaceInSourceApp() {
+        let output = quickPopupSession.translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !output.isEmpty else { return }
+        let targetApp = quickPopupSourceApp
+
+        speechService.stop()
+        quickPopupUIState.isPinned = false
+        quickPopupController.hide()
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.textReplacementService.replaceSelection(with: output, in: targetApp)
+            } catch let replaceError as TextReplacementError {
+                if replaceError == .accessibilityRequired {
+                    self.quickPopupSession.failWithAccessibilityError(replaceError.localizedDescription)
+                } else {
+                    self.quickPopupSession.failOCRRecognition(message: replaceError.localizedDescription)
+                }
+                self.showQuickPopup(near: NSEvent.mouseLocation)
+            } catch {
+                self.quickPopupSession.failOCRRecognition(message: error.localizedDescription)
+                self.showQuickPopup(near: NSEvent.mouseLocation)
+            }
+        }
     }
 
     private func showQuickPopup(near mouseLocation: NSPoint) {
@@ -294,6 +365,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                     },
                     onOpenScreenRecordingSettings: { [weak self] in
                         self?.screenCaptureService.openScreenRecordingSettings()
+                    },
+                    onOpenAccessibilitySettings: { [weak self] in
+                        self?.copyMonitor.openAccessibilitySettings()
+                    },
+                    onReplaceInSourceApp: { [weak self] in
+                        self?.replaceInSourceApp()
                     },
                     onClose: { [weak self] in
                         self?.speechService.stop()
@@ -336,6 +413,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
                 switch destination {
                 case .quickPopup:
+                    self.quickPopupSourceApp = nil
+                    self.quickPopupUIState.sourceAppName = nil
                     self.quickPopupSession.targetLanguage = self.settingsStore.settings.defaultTargetLanguage
                     self.quickPopupSession.beginOCRRecognition()
                     self.showQuickPopup(near: capture.anchorPoint)
