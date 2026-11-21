@@ -3,34 +3,34 @@ import FerryCore
 import SwiftUI
 
 /// Brand colors and the logo mark, shared by every window.
-/// Colors come straight from the 青碧 app icon: its background runs #3FD6C6 → #0F97A8.
+/// Colors come from Ferry's vibrant 青碧 lagoon palette: #1BD8BE → #0AA3B4.
 enum FerryTheme {
-    static let iconTop = Color(nsColor: NSColor(srgbRed: 0.247, green: 0.839, blue: 0.776, alpha: 1))    // #3FD6C6
-    static let iconBottom = Color(nsColor: NSColor(srgbRed: 0.059, green: 0.592, blue: 0.659, alpha: 1)) // #0F97A8
+    static let iconTop = Color(nsColor: NSColor(srgbRed: 0.106, green: 0.847, blue: 0.745, alpha: 1))    // #1BD8BE
+    static let iconBottom = Color(nsColor: NSColor(srgbRed: 0.039, green: 0.639, blue: 0.706, alpha: 1)) // #0AA3B4
 
-    /// Main tint (toggles, focus rings, selected icons): the icon's mid-tone, #1FB3B5.
-    static let accent = Color(nsColor: NSColor(srgbRed: 0.122, green: 0.702, blue: 0.710, alpha: 1))
+    /// Main tint (toggles, focus rings, selected states): crisp lagoon teal #0EB5B6.
+    static let accent = Color(nsColor: NSColor(srgbRed: 0.055, green: 0.710, blue: 0.714, alpha: 1))
 
-    /// Teal for small text and thin glyphs: the icon's deeper end in light mode (readable on white),
-    /// its brighter end in dark mode.
+    /// Teal for small text and thin glyphs: deeper end in light mode (readable on white),
+    /// brighter luminous mint in dark mode.
     static let accentText = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(srgbRed: 0.247, green: 0.839, blue: 0.776, alpha: 1)
-            : NSColor(srgbRed: 0.059, green: 0.592, blue: 0.659, alpha: 1)
+            ? NSColor(srgbRed: 0.169, green: 0.890, blue: 0.800, alpha: 1) // #2BE3CC
+            : NSColor(srgbRed: 0.039, green: 0.561, blue: 0.627, alpha: 1) // #0A8FA0
     })
 
-    /// Fill for primary buttons, matching the icon's top-to-bottom gradient.
+    /// Fill for primary buttons, matching the brand's clean top-to-bottom gradient.
     static let accentGradient = LinearGradient(
         colors: [
-            Color(nsColor: NSColor(srgbRed: 0.18, green: 0.77, blue: 0.75, alpha: 1)),
+            Color(nsColor: NSColor(srgbRed: 0.106, green: 0.847, blue: 0.745, alpha: 1)),
             iconBottom
         ],
         startPoint: .top,
         endPoint: .bottom
     )
 
-    /// Coral jib color from the icon, used sparingly for highlights.
-    static let coral = Color(nsColor: NSColor(srgbRed: 1.0, green: 0.541, blue: 0.357, alpha: 1))
+    /// Pop coral jib accent from the app icon, used sparingly for energetic highlights.
+    static let coral = Color(nsColor: NSColor(srgbRed: 1.0, green: 0.443, blue: 0.349, alpha: 1))
     /// Subtle fill for chips and secondary buttons.
     static let chipFill = Color.primary.opacity(0.06)
 }
@@ -39,12 +39,14 @@ enum FerryTheme {
 struct FerryLogo: View {
     var height: CGFloat = 16
     var color: Color = FerryTheme.accent
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
-        Image(nsImage: MenuBarIcon.make(height: height, accessibilityDescription: "渡 Ferry"))
+        let name = L10n(appLanguage).brandName
+        Image(nsImage: MenuBarIcon.make(height: height, accessibilityDescription: name))
             .renderingMode(.template)
             .foregroundStyle(color)
-            .accessibilityLabel("渡 Ferry")
+            .accessibilityLabel(name)
     }
 }
 

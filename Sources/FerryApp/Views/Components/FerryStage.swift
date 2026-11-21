@@ -1,4 +1,5 @@
 import AppKit
+import FerryCore
 import SwiftUI
 
 // Ferry's window look ("stage"): a soft gradient lit by a colored glow, with frosted glass
@@ -55,62 +56,64 @@ struct StageHue: Equatable {
         LinearGradient(colors: [top, bottom], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
-    /// 青碧, from the app icon.
-    static let teal = StageHue(top: Color(hex: 0x3FD6C6), bottom: Color(hex: 0x0F97A8))
-    /// The icon's coral jib, pushed toward sunset.
-    static let coral = StageHue(top: Color(hex: 0xFFB36B), bottom: Color(hex: 0xF2545B))
-    static let violet = StageHue(top: Color(hex: 0xB79CFF), bottom: Color(hex: 0x6A4BF5))
-    static let amber = StageHue(top: Color(hex: 0xFFD36B), bottom: Color(hex: 0xF29A2E))
+    /// Fresh lagoon mint-teal, echoing Ferry's sailboat icon.
+    static let teal = StageHue(top: Color(hex: 0x1BD8BE), bottom: Color(hex: 0x0AA3B4))
+    /// Pop tangerine-coral, echoing the icon's coral jib sail.
+    static let coral = StageHue(top: Color(hex: 0xFF8154), bottom: Color(hex: 0xFF4D6D))
+    /// Crisp electric sky-cobalt for General settings (clean & youthful, no AI-purple cast).
+    static let azure = StageHue(top: Color(hex: 0x47BCFF), bottom: Color(hex: 0x2F6BFF))
+    /// Warm sunlit citrus for keys and warnings.
+    static let amber = StageHue(top: Color(hex: 0xFFCA47), bottom: Color(hex: 0xF58B20))
 }
 
 // MARK: - Tokens
 
 enum Stage {
-    static let inkTopNS = NSColor.adaptive(light: NSColor(hex: 0xF3F8FA), dark: NSColor(hex: 0x0C1A26))
-    static let inkBottomNS = NSColor.adaptive(light: NSColor(hex: 0xEFECF8), dark: NSColor(hex: 0x15112B))
+    static let inkTopNS = NSColor.adaptive(light: NSColor(hex: 0xF8FAFC), dark: NSColor(hex: 0x0E141C))
+    static let inkBottomNS = NSColor.adaptive(light: NSColor(hex: 0xF3F6FA), dark: NSColor(hex: 0x111622))
     static let inkTop = Color(nsColor: inkTopNS)
     static let inkBottom = Color(nsColor: inkBottomNS)
     /// Solid color behind the SwiftUI content, so resizing never flashes.
     static let windowColor = inkTopNS
 
     // Glass cards
-    static let glassFill = Color.adaptive(light: white(0.66), dark: white(0.055))
-    static let glassFillHover = Color.adaptive(light: white(0.86), dark: white(0.085))
+    static let glassFill = Color.adaptive(light: white(0.78), dark: white(0.055))
+    static let glassFillHover = Color.adaptive(light: white(0.92), dark: white(0.085))
     static let glassStroke = LinearGradient(
         colors: [
-            Color.adaptive(light: black(0.06), dark: white(0.16)),
-            Color.adaptive(light: black(0.09), dark: white(0.04))
+            Color.adaptive(light: black(0.06), dark: white(0.14)),
+            Color.adaptive(light: black(0.08), dark: white(0.04))
         ],
         startPoint: .top,
         endPoint: .bottom
     )
-    static let cardShadow = Color.adaptive(light: black(0.05), dark: .clear)
+    static let cardShadow = Color.adaptive(light: black(0.045), dark: .clear)
 
     // Controls
-    static let controlFill = Color.adaptive(light: black(0.045), dark: white(0.08))
-    static let controlHover = Color.adaptive(light: black(0.08), dark: white(0.14))
-    static let controlStroke = Color.adaptive(light: black(0.08), dark: white(0.1))
-    static let wellFill = Color.adaptive(light: black(0.04), dark: black(0.24))
-    static let hairline = Color.adaptive(light: black(0.07), dark: white(0.07))
+    static let controlFill = Color.adaptive(light: black(0.04), dark: white(0.075))
+    static let controlHover = Color.adaptive(light: black(0.075), dark: white(0.13))
+    static let controlStroke = Color.adaptive(light: black(0.08), dark: white(0.10))
+    static let wellFill = Color.adaptive(light: black(0.038), dark: black(0.24))
+    static let hairline = Color.adaptive(light: black(0.065), dark: white(0.07))
 
-    // Selection (sidebar item, segmented pill)
-    static let selectedFill = Color.adaptive(light: white(0.95), dark: white(0.12))
+    // Selection (sidebar item, segmented pill, selected provider card)
+    static let selectedFill = Color.adaptive(light: white(0.98), dark: white(0.10))
     static let selectedStroke = Color.adaptive(light: black(0.06), dark: white(0.12))
-    static let sidebarFill = Color.adaptive(light: white(0.38), dark: black(0.22))
+    static let sidebarFill = Color.adaptive(light: white(0.55), dark: black(0.24))
 
     // Text
-    static let textSecondary = Color.adaptive(light: black(0.56), dark: white(0.6))
-    static let textTertiary = Color.adaptive(light: black(0.38), dark: white(0.4))
+    static let textSecondary = Color.adaptive(light: black(0.54), dark: white(0.60))
+    static let textTertiary = Color.adaptive(light: black(0.36), dark: white(0.40))
 
     // Status
-    static let ok = Color.adaptive(light: NSColor(hex: 0x12985F), dark: NSColor(hex: 0x4EE1A0))
-    static let warn = Color.adaptive(light: NSColor(hex: 0xC2601A), dark: NSColor(hex: 0xFFB36B))
-    static let danger = Color.adaptive(light: NSColor(hex: 0xD93025), dark: NSColor(hex: 0xFF8A80))
+    static let ok = Color.adaptive(light: NSColor(hex: 0x10B981), dark: NSColor(hex: 0x34D399))
+    static let warn = Color.adaptive(light: NSColor(hex: 0xEA6A12), dark: NSColor(hex: 0xFFB057))
+    static let danger = Color.adaptive(light: NSColor(hex: 0xE53935), dark: NSColor(hex: 0xFF7B72))
 }
 
 // MARK: - Backdrop
 
-/// Soft gradient with two glows in the current hue. Cross-fades when the hue changes.
+/// Clean canvas with an airy, restrained atmospheric tint in the current hue.
 struct StageBackdrop: View {
     var hue: StageHue
     /// Floating panels draw over native vibrancy, so they skip the base gradient.
@@ -124,70 +127,67 @@ struct StageBackdrop: View {
                 LinearGradient(colors: [Stage.inkTop, Stage.inkBottom], startPoint: .top, endPoint: .bottom)
             }
             RadialGradient(
-                colors: [hue.bottom.opacity(dark ? 0.55 : 0.28), hue.bottom.opacity(0)],
-                center: UnitPoint(x: 0.92, y: -0.05),
+                colors: [
+                    (dark ? hue.bottom : hue.top).opacity(dark ? 0.28 : 0.14),
+                    (dark ? hue.bottom : hue.top).opacity(0)
+                ],
+                center: UnitPoint(x: 0.94, y: -0.06),
                 startRadius: 0,
-                endRadius: 560
+                endRadius: 500
             )
             RadialGradient(
-                colors: [hue.top.opacity(dark ? 0.18 : 0.16), hue.top.opacity(0)],
-                center: UnitPoint(x: 0.05, y: 1.05),
+                colors: [hue.top.opacity(dark ? 0.10 : 0.07), hue.top.opacity(0)],
+                center: UnitPoint(x: 0.04, y: 1.04),
                 startRadius: 0,
-                endRadius: 480
+                endRadius: 420
             )
         }
         .ignoresSafeArea()
-        .animation(FerryMotion.animation(.easeInOut(duration: 0.45)), value: hue)
+        .animation(FerryMotion.animation(.easeInOut(duration: 0.4)), value: hue)
     }
 }
 
-// MARK: - Orb
+// MARK: - Icon badges
 
-/// Glowing circular icon, the visual anchor of each screen.
+/// Crisp modern squircle icon badge (used for empty states and callouts).
 struct HueOrb: View {
     let systemName: String
     let hue: StageHue
-    var size: CGFloat = 56
+    var size: CGFloat = 46
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let dark = colorScheme == .dark
+        let shape = RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
         ZStack {
-            Circle().fill(hue.gradient)
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.35), Color.white.opacity(0)],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                )
-                .padding(size * 0.06)
-            Circle().strokeBorder(Color.white.opacity(0.28), lineWidth: 1)
+            shape.fill(hue.gradient)
+            shape.strokeBorder(Color.white.opacity(dark ? 0.16 : 0.28), lineWidth: 0.75)
             Image(systemName: systemName)
-                .font(.system(size: size * 0.4, weight: .semibold))
+                .font(.system(size: size * 0.42, weight: .semibold))
                 .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
         }
         .frame(width: size, height: size)
-        .shadow(color: hue.bottom.opacity(colorScheme == .dark ? 0.55 : 0.4), radius: size * 0.32, y: size * 0.1)
+        .shadow(color: Color.black.opacity(dark ? 0.28 : 0.12), radius: size * 0.09, y: size * 0.05)
     }
 }
 
-/// Small rounded-square icon used in the sidebar and rows.
+/// Clean soft-tinted squircle icon badge used in list rows and status cards.
 struct HueTile: View {
     let systemName: String
     let hue: StageHue
-    var size: CGFloat = 24
+    var size: CGFloat = 28
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let dark = colorScheme == .dark
+        let shape = RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
         Image(systemName: systemName)
-            .font(.system(size: size * 0.5, weight: .semibold))
-            .foregroundStyle(.white)
+            .font(.system(size: size * 0.48, weight: .semibold))
+            .foregroundStyle(dark ? hue.top : hue.bottom)
             .frame(width: size, height: size)
-            .background(hue.gradient, in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+            .background(hue.bottom.opacity(dark ? 0.18 : 0.11), in: shape)
             .overlay(
-                RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5)
+                shape.strokeBorder(hue.bottom.opacity(dark ? 0.26 : 0.15), lineWidth: 0.75)
             )
     }
 }
@@ -284,19 +284,18 @@ struct GlassLabel: View {
 
 // MARK: - Hero
 
-struct StageHero<Accessory: View>: View {
-    let systemName: String
-    let hue: StageHue
+struct StageHero<Icon: View, Accessory: View>: View {
     let title: String
     let tagline: String
+    @ViewBuilder var icon: Icon
     @ViewBuilder var accessory: Accessory
 
     var body: some View {
-        HStack(spacing: 16) {
-            HueOrb(systemName: systemName, hue: hue, size: 56)
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 14) {
+            icon
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
                 Text(tagline)
                     .font(.system(size: 12.5))
@@ -309,8 +308,20 @@ struct StageHero<Accessory: View>: View {
 }
 
 extension StageHero where Accessory == EmptyView {
+    init(title: String, tagline: String, @ViewBuilder icon: () -> Icon) {
+        self.init(title: title, tagline: tagline, icon: icon) { EmptyView() }
+    }
+}
+
+extension StageHero where Icon == HueOrb {
+    init(systemName: String, hue: StageHue, title: String, tagline: String, @ViewBuilder accessory: () -> Accessory) {
+        self.init(title: title, tagline: tagline, icon: { HueOrb(systemName: systemName, hue: hue, size: 46) }, accessory: accessory)
+    }
+}
+
+extension StageHero where Icon == HueOrb, Accessory == EmptyView {
     init(systemName: String, hue: StageHue, title: String, tagline: String) {
-        self.init(systemName: systemName, hue: hue, title: title, tagline: tagline) { EmptyView() }
+        self.init(title: title, tagline: tagline, icon: { HueOrb(systemName: systemName, hue: hue, size: 46) }) { EmptyView() }
     }
 }
 
@@ -346,14 +357,14 @@ private struct GlassButtonBody: View {
             .overlay(
                 RoundedRectangle(cornerRadius: height * 0.32, style: .continuous)
                     .strokeBorder(
-                        kind == .glow ? Color.white.opacity(0.25) : (hovering ? Stage.controlStroke.opacity(1.6) : Stage.controlStroke),
+                        kind == .glow ? Color.white.opacity(0.20) : (hovering ? Stage.controlStroke.opacity(1.6) : Stage.controlStroke),
                         lineWidth: 1
                     )
             )
             .shadow(
-                color: kind == .glow ? hue.bottom.opacity((hovering ? 0.6 : 0.4) * (colorScheme == .dark ? 1 : 0.75)) : .clear,
-                radius: hovering ? 10 : 7,
-                y: 2
+                color: kind == .glow ? Color.black.opacity(colorScheme == .dark ? 0.28 : 0.12) : .clear,
+                radius: hovering ? 5 : 3.5,
+                y: 1.5
             )
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .opacity(isEnabled ? 1 : 0.4)
@@ -488,8 +499,10 @@ struct GlassField: View {
 
     @FocusState private var focused: Bool
     @ViewState private var revealed = false
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
+        let l10n = L10n(appLanguage)
         HStack(spacing: 6) {
             Group {
                 if secure && !revealed {
@@ -515,7 +528,7 @@ struct GlassField: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(revealed ? "隐藏" : "显示")
+                .help(revealed ? l10n.hide : l10n.show)
             }
         }
         .padding(.leading, 10)
@@ -652,8 +665,10 @@ struct GlassSegmented<Item: Hashable>: View {
 struct GlassToggle: View {
     @Binding var isOn: Bool
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
+        let l10n = L10n(appLanguage)
         Button {
             withAnimation(FerryMotion.animation(FerryMotion.spring)) {
                 isOn.toggle()
@@ -670,13 +685,13 @@ struct GlassToggle: View {
                     .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
             }
             .frame(width: 38, height: 22)
-            .shadow(color: isOn ? StageHue.teal.bottom.opacity(0.45) : .clear, radius: 6)
+            .shadow(color: isOn ? StageHue.teal.bottom.opacity(0.22) : .clear, radius: 4, y: 1)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .opacity(isEnabled ? 1 : 0.4)
         .accessibilityAddTraits(.isToggle)
-        .accessibilityValue(isOn ? "开" : "关")
+        .accessibilityValue(isOn ? l10n.toggleOn : l10n.toggleOff)
     }
 }
 

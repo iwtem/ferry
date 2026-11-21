@@ -185,7 +185,7 @@ public final class SpeechService: NSObject {
 
                 if !player.play() {
                     self.activeSpeakingID = nil
-                    self.lastErrorMessage = "音频播放器无法播放返回的音频格式。"
+                    self.lastErrorMessage = L10n().audioPlaybackFailed
                 }
             } catch {
                 guard !Task.isCancelled, self.playbackToken == token else { return }
@@ -231,7 +231,7 @@ extension SpeechService: AVAudioPlayerDelegate {
 
     public nonisolated func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: (any Error)?) {
         let playerID = ObjectIdentifier(player)
-        let message = error?.localizedDescription ?? "音频解码失败"
+        let message = error?.localizedDescription ?? L10n().audioDecodeFailed
         Task { @MainActor [weak self] in
             guard let self else { return }
             if let current = self.audioPlayer, ObjectIdentifier(current) == playerID {

@@ -20,6 +20,16 @@ enum UISnapshot {
 
         let sandbox = FileManager.default.temporaryDirectory.appendingPathComponent("ferry-ui-snapshot-\(UUID().uuidString)")
         let store = SettingsStore(directory: sandbox)
+        if let langFlag = args.firstIndex(of: "--lang"), args.count > langFlag + 1 {
+            switch args[langFlag + 1].lowercased() {
+            case "en", "english":
+                store.settings.language = .en
+            case "zh", "zh-hans", "zh-cn":
+                store.settings.language = .zhHans
+            default:
+                store.settings.language = .system
+            }
+        }
         store.setAPIKey("sk-sample-key-for-snapshot", for: .deepseek)
         var profile = store.profile(for: .deepseek)
         profile.fetchedModels = ["deepseek-chat", "deepseek-reasoner"]

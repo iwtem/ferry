@@ -1,10 +1,10 @@
 import Foundation
 import NaturalLanguage
 
-/// Detects the language of the source text for display ("英语", "日语"…).
+/// Detects the language of the source text for display ("英语" / "English", "日语" / "Japanese"…).
 public enum LanguageDetection {
-    /// Chinese display name of the dominant language, or nil when the text is too short or ambiguous.
-    public static func displayName(for text: String) -> String? {
+    /// Localized display name of the dominant language, or nil when the text is too short or ambiguous.
+    public static func displayName(for text: String, in appLanguage: ResolvedAppLanguage? = nil) -> String? {
         let sample = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(600))
         guard sample.count >= 2 else { return nil }
 
@@ -14,11 +14,14 @@ public enum LanguageDetection {
               confidence >= 0.5
         else { return nil }
 
+        let resolved = appLanguage ?? FerryLocalization.resolved
         switch language {
-        case .simplifiedChinese: return "简体中文"
-        case .traditionalChinese: return "繁体中文"
+        case .simplifiedChinese:
+            return FerryLocalization.text(zh: "简体中文", en: "Simplified Chinese", in: resolved)
+        case .traditionalChinese:
+            return FerryLocalization.text(zh: "繁体中文", en: "Traditional Chinese", in: resolved)
         default:
-            return Locale(identifier: "zh_CN").localizedString(forLanguageCode: language.rawValue)
+            return resolved.locale.localizedString(forLanguageCode: language.rawValue)
         }
     }
 

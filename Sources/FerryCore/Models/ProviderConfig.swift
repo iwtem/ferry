@@ -8,18 +8,26 @@ public enum ProviderKind: String, CaseIterable, Codable, Identifiable, Sendable 
     public var id: String { rawValue }
 
     public var displayName: String {
+        displayName(in: FerryLocalization.resolved)
+    }
+
+    public func displayName(in language: ResolvedAppLanguage) -> String {
         switch self {
         case .deepseek: return "DeepSeek"
-        case .bailian: return "阿里百炼 (DashScope)"
-        case .custom: return "自定义 OpenAI 兼容"
+        case .bailian: return FerryLocalization.text(zh: "阿里百炼 (DashScope)", en: "Alibaba Bailian (DashScope)", in: language)
+        case .custom: return FerryLocalization.text(zh: "自定义 OpenAI 兼容", en: "Custom OpenAI-Compatible", in: language)
         }
     }
 
     public var shortName: String {
+        shortName(in: FerryLocalization.resolved)
+    }
+
+    public func shortName(in language: ResolvedAppLanguage) -> String {
         switch self {
         case .deepseek: return "DeepSeek"
-        case .bailian: return "阿里百炼"
-        case .custom: return "自定义"
+        case .bailian: return FerryLocalization.text(zh: "阿里百炼", en: "Bailian", in: language)
+        case .custom: return FerryLocalization.text(zh: "自定义", en: "Custom", in: language)
         }
     }
 
@@ -61,13 +69,29 @@ public enum ProviderKind: String, CaseIterable, Codable, Identifiable, Sendable 
     }
 
     public var apiKeyHint: String {
+        apiKeyHint(in: FerryLocalization.resolved)
+    }
+
+    public func apiKeyHint(in language: ResolvedAppLanguage) -> String {
         switch self {
         case .deepseek:
-            return "在 platform.deepseek.com 创建 API Key（以 sk- 开头）"
+            return FerryLocalization.text(
+                zh: "在 platform.deepseek.com 创建 API Key（以 sk- 开头）",
+                en: "Create an API Key at platform.deepseek.com (starts with sk-)",
+                in: language
+            )
         case .bailian:
-            return "在阿里云百炼控制台创建 API Key（以 sk- 开头）"
+            return FerryLocalization.text(
+                zh: "在阿里云百炼控制台创建 API Key（以 sk- 开头）",
+                en: "Create an API Key in the Alibaba Cloud Bailian console (starts with sk-)",
+                in: language
+            )
         case .custom:
-            return "输入兼容 OpenAI Chat Completions 接口的 API Key（本地 Ollama 可留空或填 ollama）"
+            return FerryLocalization.text(
+                zh: "输入兼容 OpenAI Chat Completions 接口的 API Key（本地 Ollama 可留空或填 ollama）",
+                en: "Enter an OpenAI Chat Completions compatible API Key (leave blank or use 'ollama' for local Ollama)",
+                in: language
+            )
         }
     }
 }
@@ -152,10 +176,14 @@ public enum AppearanceMode: String, CaseIterable, Codable, Identifiable, Sendabl
     public var id: String { rawValue }
 
     public var displayName: String {
+        displayName(in: FerryLocalization.resolved)
+    }
+
+    public func displayName(in language: ResolvedAppLanguage) -> String {
         switch self {
-        case .system: return "跟随系统"
-        case .light: return "浅色"
-        case .dark: return "深色"
+        case .system: return FerryLocalization.text(zh: "跟随系统", en: "System", in: language)
+        case .light: return FerryLocalization.text(zh: "浅色", en: "Light", in: language)
+        case .dark: return FerryLocalization.text(zh: "深色", en: "Dark", in: language)
         }
     }
 }
@@ -173,6 +201,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Speech / pronunciation configuration (offline macOS voice or cloud TTS).
     public var speech: SpeechSettings
     public var appearance: AppearanceMode
+    /// App interface language (defaults to following the macOS system language).
+    public var language: AppLanguage
 
     public init(
         activeProvider: ProviderKind = .deepseek,
@@ -188,7 +218,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         temperature: Double = 0.2,
         wordLookupEnabled: Bool = true,
         speech: SpeechSettings = SpeechSettings(),
-        appearance: AppearanceMode = .system
+        appearance: AppearanceMode = .system,
+        language: AppLanguage = .system
     ) {
         self.activeProvider = activeProvider
         self.profiles = profiles
@@ -200,11 +231,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.wordLookupEnabled = wordLookupEnabled
         self.speech = speech
         self.appearance = appearance
+        self.language = language
     }
 
     private enum CodingKeys: String, CodingKey {
         case activeProvider, profiles, defaultTargetLanguage, doubleCopyEnabled, doubleCopyIntervalMs
-        case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, speech, appearance
+        case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, speech, appearance, language
     }
 
     // Every field falls back to its default, so settings files from older versions
@@ -222,6 +254,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         wordLookupEnabled = try c.decodeIfPresent(Bool.self, forKey: .wordLookupEnabled) ?? defaults.wordLookupEnabled
         speech = try c.decodeIfPresent(SpeechSettings.self, forKey: .speech) ?? defaults.speech
         appearance = try c.decodeIfPresent(AppearanceMode.self, forKey: .appearance) ?? defaults.appearance
+        language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language
     }
 
     public var activeProfile: ProviderProfile {

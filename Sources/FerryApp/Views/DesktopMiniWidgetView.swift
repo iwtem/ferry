@@ -31,6 +31,9 @@ public struct DesktopMiniWidgetView: View {
         self.onClose = onClose
     }
 
+    private var lang: ResolvedAppLanguage { settingsStore.resolvedLanguage }
+    private var l10n: L10n { L10n(lang) }
+
     public var body: some View {
         VStack(spacing: 8) {
             // Draggable top bar
@@ -38,8 +41,9 @@ public struct DesktopMiniWidgetView: View {
                 Image(systemName: "translate")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(FerryTheme.accent)
-                Text("渡 Ferry 小窗")
+                Text(l10n.miniWidgetTitle)
                     .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
 
                 LanguagePickerControl(selection: $session.targetLanguage, compact: true)
 
@@ -56,7 +60,7 @@ public struct DesktopMiniWidgetView: View {
                         .padding(4)
                 }
                 .buttonStyle(.plain)
-                .help(settingsStore.settings.desktopWidgetAlwaysOnTop ? "当前置顶，点击改为贴近桌面" : "点击置顶浮窗")
+                .help(settingsStore.settings.desktopWidgetAlwaysOnTop ? l10n.widgetPinnedTooltip : l10n.widgetUnpinnedTooltip)
 
                 Button(action: onOpenInMainWindow) {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -65,7 +69,7 @@ public struct DesktopMiniWidgetView: View {
                         .padding(4)
                 }
                 .buttonStyle(.plain)
-                .help("展开大窗口")
+                .help(l10n.expandMainWindowTooltip)
 
                 Button(action: onClose) {
                     Image(systemName: "xmark")
@@ -74,13 +78,13 @@ public struct DesktopMiniWidgetView: View {
                         .padding(4)
                 }
                 .buttonStyle(.plain)
-                .help("隐藏桌面小窗")
+                .help(l10n.hideMiniWidgetTooltip)
             }
 
             // Input box
             SmartTextView(
                 text: $session.sourceText,
-                placeholder: "输入内容按 Enter 快速翻译…",
+                placeholder: l10n.widgetInputPlaceholder,
                 submitOnEnter: true,
                 fontSize: 13,
                 focusTrigger: focusTrigger,
@@ -111,13 +115,13 @@ public struct DesktopMiniWidgetView: View {
                             HStack(spacing: 6) {
                                 ProgressView()
                                     .controlSize(.mini)
-                                Text("翻译中…")
+                                Text(l10n.translatingEllipsis)
                                     .font(.system(size: 12))
                                     .foregroundStyle(.secondary)
                             }
                             .padding(.vertical, 4)
                         } else if session.translatedText.isEmpty {
-                            Text("译文将实时显示在这里")
+                            Text(l10n.widgetEmptyOutput)
                                 .font(.system(size: 12))
                                 .foregroundStyle(.tertiary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -139,14 +143,14 @@ public struct DesktopMiniWidgetView: View {
 
             // Compact footer
             HStack(spacing: 6) {
-                Text(settingsStore.settings.activeProvider.shortName)
+                Text(settingsStore.settings.activeProvider.shortName(in: lang))
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
 
                 Spacer()
 
                 if !session.sourceText.isEmpty {
-                    Button("清空") {
+                    Button(l10n.clear) {
                         session.clear()
                     }
                     .buttonStyle(.plain)
@@ -159,7 +163,7 @@ public struct DesktopMiniWidgetView: View {
                     id: "widget-result",
                     text: session.translatedText,
                     languageHint: session.resolvedLanguage,
-                    help: "朗读译文",
+                    help: l10n.speakTranslation,
                     size: 24
                 )
 
@@ -180,6 +184,7 @@ public struct DesktopMiniWidgetView: View {
             }
         }
         .tint(FerryTheme.accent)
+        .ferryLocalized(lang)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

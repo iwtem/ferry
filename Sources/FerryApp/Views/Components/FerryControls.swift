@@ -197,9 +197,5 @@ struct WindowDragArea: NSViewRepresentable {
         override func mouseDown(with event: NSEvent) {
             window?.performDrag(with: event)
         }
-
-        override func resetCursorRects() {
-            addCursorRect(bounds, cursor: .openHand)
-        }
     }
 }

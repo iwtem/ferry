@@ -43,6 +43,9 @@ public struct QuickPopupView: View {
         self.onClose = onClose
     }
 
+    private var lang: ResolvedAppLanguage { settingsStore.resolvedLanguage }
+    private var l10n: L10n { L10n(lang) }
+
     public var body: some View {
         VStack(spacing: 8) {
             // Header: drag anywhere that isn't a control to move the popup.
@@ -53,9 +56,10 @@ public struct QuickPopupView: View {
                 LanguagePickerControl(selection: $session.targetLanguage, compact: true)
 
                 if !session.translatedText.isEmpty || session.isTranslating {
-                    Text("→ \(session.resolvedLanguage.shortName)")
+                    Text("→ \(session.resolvedLanguage.shortName(in: lang))")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 Spacer(minLength: 8)
@@ -68,23 +72,23 @@ public struct QuickPopupView: View {
                         .contentTransition(.symbolEffect(.replace))
                 }
                 .buttonStyle(HoverIconButtonStyle(isOn: uiState.isPinned, size: 24))
-                .help(uiState.isPinned ? "取消固定" : "钉住悬浮窗")
+                .help(uiState.isPinned ? l10n.unpinTooltip : l10n.pinPopupTooltip)
 
                 Button(action: onOpenInMainWindow) {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                 }
                 .buttonStyle(HoverIconButtonStyle(size: 24))
-                .help("在大窗口中打开")
+                .help(l10n.openInMainWindowTooltip)
 
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                 }
                 .buttonStyle(HoverIconButtonStyle(size: 24))
-                .help("关闭 (Esc)")
+                .help(l10n.closeEscTooltip)
             }
             .padding(.vertical, 2)
             .background(WindowDragArea())
-            .help("拖动空白处可移动窗口")
+            .help(l10n.dragToMoveTooltip)
 
             // Collapsible source text preview + source speak button
             HStack(alignment: .top, spacing: 6) {
@@ -112,7 +116,7 @@ public struct QuickPopupView: View {
                     speechService: speechService,
                     id: "popup-source",
                     text: session.sourceText,
-                    help: "朗读原文",
+                    help: l10n.speakSource,
                     size: 22
                 )
             }
@@ -134,7 +138,7 @@ public struct QuickPopupView: View {
                             HStack(spacing: 6) {
                                 ProgressView()
                                     .controlSize(.small)
-                                Text("正在翻译…")
+                                Text(l10n.translatingLongEllipsis)
                                     .font(.system(size: 13))
                                     .foregroundStyle(.secondary)
                             }
@@ -158,7 +162,7 @@ public struct QuickPopupView: View {
 
             // Bottom action bar
             HStack(spacing: 6) {
-                Text("\(settingsStore.settings.activeProvider.shortName) · \(settingsStore.settings.activeProfile.effectiveModel)")
+                Text("\(settingsStore.settings.activeProvider.shortName(in: lang)) · \(settingsStore.settings.activeProfile.effectiveModel)")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
@@ -170,7 +174,7 @@ public struct QuickPopupView: View {
                     id: "popup-result",
                     text: session.translatedText,
                     languageHint: session.resolvedLanguage,
-                    help: "朗读译文",
+                    help: l10n.speakTranslation,
                     size: 24
                 )
 
@@ -178,7 +182,7 @@ public struct QuickPopupView: View {
                     Button {
                         session.cancel()
                     } label: {
-                        Text("停止")
+                        Text(l10n.stop)
                             .font(.system(size: 11.5, weight: .medium))
                             .foregroundStyle(.red)
                     }
@@ -194,7 +198,7 @@ public struct QuickPopupView: View {
                             .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                     .buttonStyle(.plain)
-                    .help("重新翻译")
+                    .help(l10n.retranslateTooltip)
                 }
 
                 CopyResultButton(
@@ -214,6 +218,7 @@ public struct QuickPopupView: View {
             }
         }
         .tint(FerryTheme.accent)
+        .ferryLocalized(lang)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

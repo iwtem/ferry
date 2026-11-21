@@ -27,6 +27,9 @@ public struct MenuBarPopoverView: View {
         !session.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var lang: ResolvedAppLanguage { settingsStore.resolvedLanguage }
+    private var l10n: L10n { L10n(lang) }
+
     public var body: some View {
         VStack(spacing: 10) {
             headerBar
@@ -52,6 +55,7 @@ public struct MenuBarPopoverView: View {
                 .strokeBorder(Stage.controlStroke, lineWidth: 1)
         )
         .tint(FerryTheme.accent)
+        .ferryLocalized(lang)
         .onChange(of: session.targetLanguage) { _, _ in
             if hasSource {
                 session.translate()
@@ -71,10 +75,10 @@ public struct MenuBarPopoverView: View {
 
             Spacer(minLength: 6)
 
-            headerButton("pip", help: "桌面小窗", action: onToggleDesktopWidget)
-            headerButton("arrow.up.left.and.arrow.down.right", help: "在大窗口中打开", action: onOpenMainWindow)
-            headerButton("gearshape", help: "设置", action: onOpenSettings)
-            headerButton("power", help: "退出 Ferry", action: onQuit)
+            headerButton("pip", help: l10n.miniWidgetTooltip, action: onToggleDesktopWidget)
+            headerButton("arrow.up.left.and.arrow.down.right", help: l10n.openInMainWindowTooltip, action: onOpenMainWindow)
+            headerButton("gearshape", help: l10n.settings, action: onOpenSettings)
+            headerButton("power", help: l10n.quitFerry, action: onQuit)
         }
     }
 
@@ -93,7 +97,7 @@ public struct MenuBarPopoverView: View {
         VStack(spacing: 0) {
             SmartTextView(
                 text: $session.sourceText,
-                placeholder: "输入文本，⏎ 翻译",
+                placeholder: l10n.popoverInputPlaceholder,
                 submitOnEnter: true,
                 fontSize: 13.5,
                 onSubmit: {
@@ -112,9 +116,9 @@ public struct MenuBarPopoverView: View {
                         Image(systemName: "xmark.circle.fill")
                     }
                     .buttonStyle(GhostIconStyle(size: 24))
-                    .help("清空")
+                    .help(l10n.clear)
                 } else {
-                    Text("⇧⏎ 换行")
+                    Text(l10n.shiftReturnHint)
                         .font(.system(size: 10.5))
                         .foregroundStyle(Stage.textTertiary)
                         .padding(.leading, 4)
@@ -127,7 +131,7 @@ public struct MenuBarPopoverView: View {
                         speechService: speechService,
                         id: "popover-source",
                         text: session.sourceText,
-                        help: "朗读原文",
+                        help: l10n.speakSource,
                         size: 24
                     )
                 }
@@ -136,11 +140,11 @@ public struct MenuBarPopoverView: View {
                     Button(role: .cancel) {
                         session.cancel()
                     } label: {
-                        Label("停止", systemImage: "stop.fill")
+                        Label(l10n.stop, systemImage: "stop.fill")
                     }
                     .buttonStyle(GlassButtonStyle(height: 24))
                 } else {
-                    Button("翻译") {
+                    Button(l10n.translate) {
                         session.translate()
                     }
                     .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: 24))
@@ -157,15 +161,16 @@ public struct MenuBarPopoverView: View {
 
     private var controlRow: some View {
         HStack(spacing: 6) {
-            LanguagePickerControl(selection: $session.targetLanguage)
+            LanguagePickerControl(selection: $session.targetLanguage, compact: true)
 
             if hasResult || session.isTranslating {
-                Text("→ \(session.resolvedLanguage.shortName)")
+                Text("→ \(session.resolvedLanguage.shortName(in: lang))")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Stage.textSecondary)
+                    .lineLimit(1)
             }
 
-            Spacer()
+            Spacer(minLength: 4)
 
             if hasResult && !session.isTranslating {
                 Button {
@@ -174,7 +179,7 @@ public struct MenuBarPopoverView: View {
                     Image(systemName: "arrow.up.arrow.down")
                 }
                 .buttonStyle(GhostIconStyle(size: 24))
-                .help("把译文放回输入框，反向翻译")
+                .help(l10n.swapPopoverTooltip)
             }
 
             SpeakButton(
@@ -182,7 +187,7 @@ public struct MenuBarPopoverView: View {
                 id: "popover-result",
                 text: session.translatedText,
                 languageHint: session.resolvedLanguage,
-                help: "朗读译文",
+                help: l10n.speakTranslation,
                 size: 24
             )
 
@@ -206,7 +211,7 @@ public struct MenuBarPopoverView: View {
                 } else if !hasResult && session.isTranslating {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text("翻译中…")
+                        Text(l10n.translatingEllipsis)
                             .font(.system(size: 12.5))
                             .foregroundStyle(Stage.textSecondary)
                     }
@@ -221,15 +226,15 @@ public struct MenuBarPopoverView: View {
                 } else if !settingsStore.hasActiveAPIKey {
                     VStack(spacing: 10) {
                         HueOrb(systemName: "key.fill", hue: .amber, size: 40)
-                        Text("还没填 API Key")
+                        Text(l10n.missingAPIKeyTitle)
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        Button("去设置", action: onOpenSettings)
+                        Button(l10n.openSettings, action: onOpenSettings)
                             .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: 26))
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                 } else {
-                    Text("译文")
+                    Text(l10n.translationPlaceholder)
                         .font(.system(size: 14))
                         .foregroundStyle(Stage.textTertiary)
                 }

@@ -7,15 +7,32 @@ public enum CloudTTSError: LocalizedError, Sendable {
     case invalidResponse(String)
 
     public var errorDescription: String? {
+        let lang = FerryLocalization.resolved
         switch self {
         case .missingAPIKey(let provider):
-            return "请先在「模型服务」中配置 \(provider) 的 API Key。"
+            return FerryLocalization.text(
+                zh: "请先在「模型」中配置 \(provider) 的 API Key。",
+                en: "Please configure an API Key for \(provider) in Settings → Models first.",
+                in: lang
+            )
         case .invalidEndpoint(let message):
-            return "TTS 接口地址无效：\(message)"
+            return FerryLocalization.text(
+                zh: "TTS 接口地址无效：\(message)",
+                en: "Invalid TTS endpoint URL: \(message)",
+                in: lang
+            )
         case .httpError(let code, let detail):
-            return "云端语音合成失败（HTTP \(code)）：\(detail)"
+            return FerryLocalization.text(
+                zh: "云端语音合成失败（HTTP \(code)）：\(detail)",
+                en: "Cloud TTS failed (HTTP \(code)): \(detail)",
+                in: lang
+            )
         case .invalidResponse(let detail):
-            return "无法解析云端语音响应：\(detail)"
+            return FerryLocalization.text(
+                zh: "无法解析云端语音响应：\(detail)",
+                en: "Could not parse cloud TTS response: \(detail)",
+                in: lang
+            )
         }
     }
 }
@@ -64,7 +81,9 @@ public actor CloudTTSService {
     public func synthesize(_ request: CloudTTSRequest) async throws -> Data {
         let cleanedText = Self.sanitizeForSpeech(request.text)
         guard !cleanedText.isEmpty else {
-            throw CloudTTSError.invalidResponse("朗读文本为空")
+            throw CloudTTSError.invalidResponse(
+                FerryLocalization.text(zh: "朗读文本为空", en: "No text to speak")
+            )
         }
 
         let cacheKey = [
@@ -87,7 +106,9 @@ public actor CloudTTSService {
         case .openAI:
             audioData = try await synthesizeOpenAI(request, text: cleanedText)
         case .system:
-            throw CloudTTSError.invalidResponse("系统语音不通过云端接口合成")
+            throw CloudTTSError.invalidResponse(
+                FerryLocalization.text(zh: "系统语音不通过云端接口合成", en: "System voice does not use cloud synthesis")
+            )
         }
 
         storeCache(audioData, forKey: cacheKey)
@@ -99,7 +120,7 @@ public actor CloudTTSService {
     private func synthesizeBailian(_ request: CloudTTSRequest, text: String) async throws -> Data {
         let key = request.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else {
-            throw CloudTTSError.missingAPIKey("阿里百炼 (DashScope)")
+            throw CloudTTSError.missingAPIKey(ProviderKind.bailian.displayName)
         }
         guard let endpoint = Self.bailianTTSEndpoint(from: request.baseURL) else {
             throw CloudTTSError.invalidEndpoint(request.baseURL)
@@ -130,7 +151,9 @@ public actor CloudTTSService {
 
         // Parse output.audio.url or output.audio.data (base64)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw CloudTTSError.invalidResponse("返回不是有效的 JSON")
+            throw CloudTTSError.invalidResponse(
+                FerryLocalization.text(zh: "返回不是有效的 JSON", en: "Response is not valid JSON")
+            )
         }
 
         if let code = json["code"] as? String, !code.isEmpty {
@@ -153,7 +176,9 @@ public actor CloudTTSService {
             }
         }
 
-        throw CloudTTSError.invalidResponse("响应中未包含音频地址或数据")
+        throw CloudTTSError.invalidResponse(
+            FerryLocalization.text(zh: "响应中未包含音频地址或数据", en: "Response did not contain audio URL or data")
+        )
     }
 
     // MARK: - OpenAI Compatible /audio/speech
@@ -163,7 +188,7 @@ public actor CloudTTSService {
         let lowerURL = request.baseURL.lowercased()
         let isLocal = lowerURL.contains("localhost") || lowerURL.contains("127.0.0.1")
         guard !key.isEmpty || isLocal else {
-            throw CloudTTSError.missingAPIKey("自定义 OpenAI 兼容服务")
+            throw CloudTTSError.missingAPIKey(ProviderKind.custom.displayName)
         }
         guard let endpoint = Self.openAITTSEndpoint(from: request.baseURL) else {
             throw CloudTTSError.invalidEndpoint(request.baseURL)
@@ -191,7 +216,9 @@ public actor CloudTTSService {
         try validateHTTP(response: response, data: data)
 
         guard !data.isEmpty else {
-            throw CloudTTSError.invalidResponse("服务端返回了空的音频流")
+            throw CloudTTSError.invalidResponse(
+                FerryLocalization.text(zh: "服务端返回了空的音频流", en: "Server returned an empty audio stream")
+            )
         }
         return data
     }

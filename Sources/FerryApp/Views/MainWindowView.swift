@@ -49,6 +49,9 @@ public struct MainWindowView: View {
         !session.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var lang: ResolvedAppLanguage { settingsStore.resolvedLanguage }
+    private var l10n: L10n { L10n(lang) }
+
     public var body: some View {
         VStack(spacing: 0) {
             header
@@ -84,6 +87,7 @@ public struct MainWindowView: View {
         .background(StageBackdrop(hue: .teal))
         .ignoresSafeArea(.container, edges: .top)
         .tint(FerryTheme.accent)
+        .ferryLocalized(lang)
         .onChange(of: session.targetLanguage) { _, _ in
             if hasSource {
                 session.translate()
@@ -96,7 +100,7 @@ public struct MainWindowView: View {
     private var header: some View {
         HStack(spacing: 10) {
             FerryLogo(height: 17, color: FerryTheme.accentText)
-            Text("渡 Ferry")
+            Text(l10n.brandName)
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(.primary)
 
@@ -105,13 +109,13 @@ public struct MainWindowView: View {
             ModelMenu(settingsStore: settingsStore, onOpenSettings: onOpenSettings)
                 .padding(.trailing, 4)
 
-            GlassIconButton(systemName: "clock.arrow.circlepath", help: "翻译记录", isOn: uiState.showHistory) {
+            GlassIconButton(systemName: "clock.arrow.circlepath", help: l10n.historyTooltip, isOn: uiState.showHistory) {
                 withAnimation(FerryMotion.animation(FerryMotion.spring)) {
                     uiState.showHistory.toggle()
                 }
             }
-            GlassIconButton(systemName: "pip", help: "桌面小窗", action: onToggleDesktopWidget)
-            GlassIconButton(systemName: "gearshape", help: "设置 (⌘,)", action: onOpenSettings)
+            GlassIconButton(systemName: "pip", help: l10n.miniWidgetTooltip, action: onToggleDesktopWidget)
+            GlassIconButton(systemName: "gearshape", help: l10n.settingsShortcutHelp, action: onOpenSettings)
         }
         .padding(.leading, 80) // room for the traffic-light buttons
         .padding(.trailing, 14)
@@ -148,13 +152,13 @@ public struct MainWindowView: View {
             }
             .buttonStyle(GlassIconStyle(size: 30))
             .disabled(!hasResult || session.isTranslating)
-            .help("把译文放回左侧，反向翻译")
+            .help(l10n.swapMainTooltip)
             .padding(.horizontal, 6)
 
             HStack {
                 LanguagePickerControl(selection: $session.targetLanguage)
                 if session.targetLanguage == .auto && (hasResult || session.isTranslating) {
-                    Text("译为\(session.resolvedLanguage.shortName)")
+                    Text(l10n.translatedTo(session.resolvedLanguage))
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                 }
@@ -164,10 +168,12 @@ public struct MainWindowView: View {
         }
     }
 
-    /// Detected source language, e.g. "英语（自动检测）".
+    /// Detected source language, e.g. "英语（自动检测）" or "English (Detected)".
     private var sourceLanguageLabel: String {
-        guard let name = LanguageDetection.displayName(for: session.sourceText) else { return "自动检测语言" }
-        return "\(name)（自动检测）"
+        guard let name = LanguageDetection.displayName(for: session.sourceText, in: lang) else {
+            return l10n.autoDetectLanguage
+        }
+        return l10n.detectedSourceLanguage(name)
     }
 
     // MARK: - Source
@@ -176,7 +182,7 @@ public struct MainWindowView: View {
         VStack(spacing: 0) {
             SmartTextView(
                 text: $session.sourceText,
-                placeholder: "输入或粘贴文本，⌘⏎ 翻译",
+                placeholder: l10n.mainInputPlaceholder,
                 submitOnEnter: false,
                 fontSize: 15,
                 focusTrigger: uiState.focusTrigger,
@@ -188,7 +194,7 @@ public struct MainWindowView: View {
             .padding(.top, 6)
 
             HStack(spacing: 8) {
-                Text("\(session.sourceText.count) 字")
+                Text(l10n.characterCount(session.sourceText.count))
                     .font(.system(size: 11))
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
@@ -199,16 +205,16 @@ public struct MainWindowView: View {
                     speechService: speechService,
                     id: "main-source",
                     text: session.sourceText,
-                    help: "朗读原文"
+                    help: l10n.speakSource
                 )
 
-                IconButton(systemName: "doc.on.clipboard", help: "粘贴并翻译") {
+                IconButton(systemName: "doc.on.clipboard", help: l10n.pasteAndTranslateTooltip) {
                     if let clip = NSPasteboard.general.string(forType: .string), !clip.isEmpty {
                         session.translate(text: clip)
                     }
                 }
                 if !session.sourceText.isEmpty {
-                    IconButton(systemName: "xmark.circle", help: "清空") {
+                    IconButton(systemName: "xmark.circle", help: l10n.clear) {
                         session.clear()
                     }
                 }
@@ -218,7 +224,7 @@ public struct MainWindowView: View {
                         Button(role: .cancel) {
                             session.cancel()
                         } label: {
-                            Label("停止", systemImage: "stop.fill")
+                            Label(l10n.stop, systemImage: "stop.fill")
                         }
                         .buttonStyle(GlassButtonStyle(height: 30))
                     } else {
@@ -226,7 +232,7 @@ public struct MainWindowView: View {
                             session.translate()
                         } label: {
                             HStack(spacing: 6) {
-                                Text("翻译")
+                                Text(l10n.translate)
                                 Image(systemName: "arrow.right")
                                     .font(.system(size: 11, weight: .bold))
                             }
@@ -235,7 +241,7 @@ public struct MainWindowView: View {
                         .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: 30))
                         .keyboardShortcut(.return, modifiers: .command)
                         .disabled(!hasSource)
-                        .help("翻译 (⌘⏎)")
+                        .help(l10n.translateShortcutHelp)
                     }
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
@@ -266,7 +272,7 @@ public struct MainWindowView: View {
                     } else if !hasResult && session.isTranslating {
                         HStack(spacing: 8) {
                             ProgressView().controlSize(.small)
-                            Text("\(settingsStore.settings.activeProvider.shortName) 正在翻译…")
+                            Text(l10n.providerTranslating(settingsStore.settings.activeProvider))
                                 .font(.system(size: 13.5))
                                 .foregroundStyle(.secondary)
                         }
@@ -290,11 +296,11 @@ public struct MainWindowView: View {
             HStack(spacing: 8) {
                 if session.isTranslating {
                     ProgressView().controlSize(.mini)
-                    Text("生成中")
+                    Text(l10n.generating)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 } else if hasResult {
-                    Text("\(session.translatedText.count) 字")
+                    Text(l10n.characterCount(session.translatedText.count))
                         .font(.system(size: 11))
                         .monospacedDigit()
                         .foregroundStyle(.tertiary)
@@ -305,7 +311,7 @@ public struct MainWindowView: View {
                     id: "main-result",
                     text: session.translatedText,
                     languageHint: session.resolvedLanguage,
-                    help: "朗读译文"
+                    help: l10n.speakTranslation
                 )
                 CopyResultButton(copied: session.copiedRecently, disabled: !hasResult) {
                     session.copyTranslation()
@@ -321,16 +327,16 @@ public struct MainWindowView: View {
     @ViewBuilder
     private var emptyResult: some View {
         if settingsStore.hasActiveAPIKey {
-            Text("译文")
+            Text(l10n.translationPlaceholder)
                 .font(.system(size: 15))
                 .foregroundStyle(.tertiary)
         } else {
             VStack(spacing: 12) {
                 HueOrb(systemName: "key.fill", hue: .amber, size: 48)
                     .padding(.bottom, 4)
-                Text("还没填 API Key")
+                Text(l10n.missingAPIKeyTitle)
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
-                Button("去设置", action: onOpenSettings)
+                Button(l10n.openSettings, action: onOpenSettings)
                     .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: 30))
             }
             .frame(maxWidth: .infinity)
@@ -342,10 +348,10 @@ public struct MainWindowView: View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
-            Text("划词翻译需要辅助功能权限")
+            Text(l10n.permissionNoticeText)
                 .font(.system(size: 12))
             Spacer()
-            Button("去开启") {
+            Button(l10n.permissionNoticeAction) {
                 copyMonitor.openAccessibilitySettings()
             }
             .buttonStyle(GlassButtonStyle(kind: .glow, hue: .coral, height: 24))
@@ -361,10 +367,10 @@ public struct MainWindowView: View {
     private var historySidebar: some View {
         VStack(spacing: 0) {
             HStack {
-                GlassLabel("记录")
+                GlassLabel(l10n.historyHeader)
                 Spacer()
                 if !settingsStore.recentRecords.isEmpty {
-                    Button("清空") {
+                    Button(l10n.clear) {
                         settingsStore.clearRecentRecords()
                     }
                     .buttonStyle(.plain)
@@ -381,7 +387,7 @@ public struct MainWindowView: View {
                     Image(systemName: "text.bubble")
                         .font(.system(size: 24))
                         .foregroundStyle(.tertiary)
-                    Text("还没有记录")
+                    Text(l10n.historyEmpty)
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
                     Spacer()
@@ -404,10 +410,10 @@ public struct MainWindowView: View {
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)
                                     HStack(spacing: 4) {
-                                        Text("译为\(record.resolvedLanguage.shortName)")
+                                        Text(l10n.translatedTo(record.resolvedLanguage))
                                         Text("·")
                                         Text(record.createdAt, format: .relative(presentation: .named))
-                                            .environment(\.locale, Locale(identifier: "zh_CN"))
+                                            .environment(\.locale, lang.locale)
                                     }
                                     .font(.system(size: 10.5))
                                     .foregroundStyle(.tertiary)
@@ -435,6 +441,9 @@ struct ModelMenu: View {
     var onOpenSettings: () -> Void
     var compact: Bool = false
 
+    private var lang: ResolvedAppLanguage { settingsStore.resolvedLanguage }
+    private var l10n: L10n { L10n(lang) }
+
     var body: some View {
         Menu {
             ForEach(ProviderKind.allCases) { kind in
@@ -442,14 +451,14 @@ struct ModelMenu: View {
                     settingsStore.settings.activeProvider = kind
                 } label: {
                     if settingsStore.settings.activeProvider == kind {
-                        Label("\(kind.shortName) · \(settingsStore.profile(for: kind).effectiveModel)", systemImage: "checkmark")
+                        Label("\(kind.shortName(in: lang)) · \(settingsStore.profile(for: kind).effectiveModel)", systemImage: "checkmark")
                     } else {
-                        Text("\(kind.shortName) · \(settingsStore.profile(for: kind).effectiveModel)")
+                        Text("\(kind.shortName(in: lang)) · \(settingsStore.profile(for: kind).effectiveModel)")
                     }
                 }
             }
             Divider()
-            Button("模型设置…", action: onOpenSettings)
+            Button(l10n.modelSettingsItem, action: onOpenSettings)
         } label: {
             HStack(spacing: 5) {
                 Circle()
@@ -457,7 +466,7 @@ struct ModelMenu: View {
                     .frame(width: 6, height: 6)
                 Text(compact
                      ? settingsStore.settings.activeProfile.effectiveModel
-                     : "\(settingsStore.settings.activeProvider.shortName) · \(settingsStore.settings.activeProfile.effectiveModel)")
+                     : "\(settingsStore.settings.activeProvider.shortName(in: lang)) · \(settingsStore.settings.activeProfile.effectiveModel)")
                     .font(.system(size: compact ? 11 : 12, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -474,7 +483,7 @@ struct ModelMenu: View {
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help(settingsStore.hasActiveAPIKey ? "切换模型服务商" : "当前服务商还没有配置 API Key")
+        .help(settingsStore.hasActiveAPIKey ? l10n.switchProviderHelp : l10n.missingProviderKeyHelp)
     }
 }
 

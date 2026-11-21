@@ -13,8 +13,12 @@ public enum TargetLanguage: String, CaseIterable, Codable, Identifiable, Sendabl
     public var id: String { rawValue }
 
     public var displayName: String {
+        displayName(in: FerryLocalization.resolved)
+    }
+
+    public func displayName(in language: ResolvedAppLanguage) -> String {
         switch self {
-        case .auto: return "自动 (中↔英)"
+        case .auto: return FerryLocalization.text(zh: "自动 (中↔英)", en: "Auto (ZH↔EN)", in: language)
         case .zhCN: return "简体中文"
         case .en: return "English"
         case .ja: return "日本語"
@@ -26,15 +30,19 @@ public enum TargetLanguage: String, CaseIterable, Codable, Identifiable, Sendabl
     }
 
     public var shortName: String {
+        shortName(in: FerryLocalization.resolved)
+    }
+
+    public func shortName(in language: ResolvedAppLanguage) -> String {
         switch self {
-        case .auto: return "中↔英"
-        case .zhCN: return "中文"
-        case .en: return "英文"
-        case .ja: return "日语"
-        case .ko: return "韩语"
-        case .fr: return "法语"
-        case .de: return "德语"
-        case .es: return "西语"
+        case .auto: return FerryLocalization.text(zh: "中↔英", en: "ZH↔EN", in: language)
+        case .zhCN: return FerryLocalization.text(zh: "中文", en: "Chinese", in: language)
+        case .en: return FerryLocalization.text(zh: "英文", en: "English", in: language)
+        case .ja: return FerryLocalization.text(zh: "日语", en: "Japanese", in: language)
+        case .ko: return FerryLocalization.text(zh: "韩语", en: "Korean", in: language)
+        case .fr: return FerryLocalization.text(zh: "法语", en: "French", in: language)
+        case .de: return FerryLocalization.text(zh: "德语", en: "German", in: language)
+        case .es: return FerryLocalization.text(zh: "西语", en: "Spanish", in: language)
         }
     }
 

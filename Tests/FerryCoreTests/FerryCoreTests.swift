@@ -217,6 +217,68 @@ struct FerryCoreTests {
         #expect(settings.profiles[.bailian]?.model == "qwen-plus")
         #expect(settings.wordLookupEnabled == true)
         #expect(settings.speech == SpeechSettings())
+        #expect(settings.language == .system)
+    }
+
+    @Test("AppLanguage resolves explicit overrides and system preferred languages")
+    func testAppLanguageResolution() {
+        #expect(ResolvedAppLanguage.resolve(.zhHans, preferredLanguages: ["en-US"]) == .zhHans)
+        #expect(ResolvedAppLanguage.resolve(.en, preferredLanguages: ["zh-Hans-CN"]) == .en)
+
+        #expect(ResolvedAppLanguage.resolve(.system, preferredLanguages: ["zh-Hans-CN", "en-US"]) == .zhHans)
+        #expect(ResolvedAppLanguage.resolve(.system, preferredLanguages: ["zh-Hant-TW", "en-US"]) == .zhHans)
+        #expect(ResolvedAppLanguage.resolve(.system, preferredLanguages: ["en-US", "zh-Hans-CN"]) == .en)
+        #expect(ResolvedAppLanguage.resolve(.system, preferredLanguages: ["ja-JP", "zh-Hans-CN"]) == .zhHans)
+        #expect(ResolvedAppLanguage.resolve(.system, preferredLanguages: ["ja-JP", "en-GB"]) == .en)
+        #expect(ResolvedAppLanguage.resolve(.system, preferredLanguages: ["fr-FR"]) == .en)
+        #expect(ResolvedAppLanguage.resolve(.system, preferredLanguages: []) == .en)
+    }
+
+    @Test("Localized model display names and errors reflect Chinese and English")
+    func testLocalizedModelStrings() {
+        #expect(AppLanguage.system.displayName(in: .zhHans) == "跟随系统")
+        #expect(AppLanguage.system.displayName(in: .en) == "System")
+        #expect(AppLanguage.zhHans.displayName(in: .en) == "简体中文")
+        #expect(AppLanguage.en.displayName(in: .zhHans) == "English")
+
+        #expect(AppearanceMode.system.displayName(in: .zhHans) == "跟随系统")
+        #expect(AppearanceMode.dark.displayName(in: .en) == "Dark")
+
+        #expect(ProviderKind.bailian.shortName(in: .zhHans) == "阿里百炼")
+        #expect(ProviderKind.bailian.shortName(in: .en) == "Bailian")
+        #expect(ProviderKind.custom.shortName(in: .en) == "Custom")
+
+        #expect(TargetLanguage.auto.displayName(in: .zhHans) == "自动 (中↔英)")
+        #expect(TargetLanguage.auto.displayName(in: .en) == "Auto (ZH↔EN)")
+        #expect(TargetLanguage.zhCN.shortName(in: .en) == "Chinese")
+
+        #expect(EnglishAccent.us.displayName(in: .en) == "American (US)")
+        #expect(EnglishAccent.gb.displayName(in: .zhHans) == "英式英语 (UK)")
+
+        let previous = FerryLocalization.languageSetting
+        defer { FerryLocalization.languageSetting = previous }
+
+        FerryLocalization.languageSetting = .en
+        #expect(TranslationError.missingAPIKey(.deepseek).errorDescription?.contains("API Key") == true)
+        #expect(TranslationError.httpError(statusCode: 401, message: "bad").errorDescription?.contains("401") == true)
+        #expect(CloudTTSError.missingAPIKey("Bailian").errorDescription?.contains("API Key") == true)
+
+        FerryLocalization.languageSetting = .zhHans
+        #expect(TranslationError.missingAPIKey(.deepseek).errorDescription?.contains("尚未配置") == true)
+        #expect(CloudTTSError.missingAPIKey("阿里百炼").errorDescription?.contains("请先在") == true)
+    }
+
+    @Test("LanguageDetection displayName localizes for Chinese and English")
+    func testLocalizedLanguageDetectionDisplayName() {
+        let zhName = LanguageDetection.displayName(for: "This is a clear English sentence for testing.", in: .zhHans)
+        let enName = LanguageDetection.displayName(for: "This is a clear English sentence for testing.", in: .en)
+        #expect(zhName == "英语")
+        #expect(enName == "English")
+
+        let zhForChinese = LanguageDetection.displayName(for: "今天天气真不错，我们去公园散步吧。", in: .zhHans)
+        let enForChinese = LanguageDetection.displayName(for: "今天天气真不错，我们去公园散步吧。", in: .en)
+        #expect(zhForChinese == "简体中文")
+        #expect(enForChinese == "Simplified Chinese")
     }
 
     @Test("CloudTTSService derives DashScope and OpenAI endpoints cleanly")

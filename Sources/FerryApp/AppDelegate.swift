@@ -9,6 +9,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private lazy var copyMonitor = GlobalCopyMonitor(settingsStore: settingsStore)
     private lazy var speechService = SpeechService(settingsStore: settingsStore)
+    private let launchAtLogin = LaunchAtLoginService()
     private lazy var popoverSession = TranslatorSession(settingsStore: settingsStore, translatorService: translatorService)
     private lazy var mainWindowSession = TranslatorSession(settingsStore: settingsStore, translatorService: translatorService)
     private lazy var quickPopupSession = TranslatorSession(settingsStore: settingsStore, translatorService: translatorService)
@@ -18,6 +19,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let menuBarPanel = MenuBarPanelController()
     private var mainWindow: NSWindow?
     private var settingsWindow: NSWindow?
+    private var languageObserver: NSObjectProtocol?
 
     private let quickPopupController = QuickPopupController()
     private let desktopWidgetController = DesktopMiniWidgetController()
@@ -36,6 +38,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMainMenu()
         setupStatusItem()
         setupGlobalCopyMonitor()
+        observeLanguageChanges()
 
         // First launch: if no API key is configured yet, gently open the menu bar popover so user sees the app immediately
         if !settingsStore.hasActiveAPIKey {
@@ -46,41 +49,70 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        if let languageObserver {
+            NotificationCenter.default.removeObserver(languageObserver)
+            self.languageObserver = nil
+        }
         copyMonitor.stopMonitoring()
         speechService.stop()
+        launchAtLogin.stopObserving()
+    }
+
+    private func observeLanguageChanges() {
+        languageObserver = NotificationCenter.default.addObserver(
+            forName: .ferryLanguageDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshLocalizedChrome()
+            }
+        }
+    }
+
+    private func refreshLocalizedChrome() {
+        let l10n = L10n(settingsStore.resolvedLanguage)
+        setupMainMenu()
+        if let button = statusItem?.button {
+            button.image = MenuBarIcon.make(accessibilityDescription: l10n.brandName)
+            button.toolTip = l10n.statusItemTooltip
+        }
+        mainWindow?.title = l10n.brandName
+        settingsWindow?.title = l10n.settingsWindowTitle
     }
 
     // MARK: - Standard Main Menu (enables Cmd+C/V/X/A/Z in LSUIElement app)
 
     private func setupMainMenu() {
+        let l10n = L10n(settingsStore.resolvedLanguage)
         let mainMenu = NSMenu()
 
         // App menu
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "Ferry")
-        appMenu.addItem(withTitle: "设置…", action: #selector(openSettingsAction), keyEquivalent: ",")
+        appMenu.addItem(withTitle: l10n.menuSettings, action: #selector(openSettingsAction), keyEquivalent: ",")
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "退出 渡 Ferry",action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: l10n.menuQuitApp, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
         // Edit menu (critical for Cmd+C / Cmd+V / Cmd+A / Cmd+Z in text fields!)
         let editMenuItem = NSMenuItem()
-        let editMenu = NSMenu(title: "编辑")
-        editMenu.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
-        editMenu.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "Z")
+        let editMenu = NSMenu(title: l10n.menuEdit)
+        editMenu.addItem(withTitle: l10n.menuUndo, action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: l10n.menuRedo, action: Selector(("redo:")), keyEquivalent: "Z")
         editMenu.addItem(NSMenuItem.separator())
-        editMenu.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "拷贝", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(withTitle: l10n.menuCut, action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: l10n.menuCopy, action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: l10n.menuPaste, action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: l10n.menuSelectAll, action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
         // Window menu
         let windowMenuItem = NSMenuItem()
-        let windowMenu = NSMenu(title: "窗口")
-        windowMenu.addItem(withTitle: "关闭窗口", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let windowMenu = NSMenu(title: l10n.menuWindow)
+        windowMenu.addItem(withTitle: l10n.menuCloseWindow, action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         windowMenuItem.submenu = windowMenu
         mainMenu.addItem(windowMenuItem)
 
@@ -90,10 +122,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Menu Bar Status Item & Popover
 
     private func setupStatusItem() {
+        let l10n = L10n(settingsStore.resolvedLanguage)
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
-            button.image = MenuBarIcon.make(accessibilityDescription: "渡 Ferry")
-            button.toolTip = "渡 Ferry（左键快译，右键菜单）"
+            button.image = MenuBarIcon.make(accessibilityDescription: l10n.brandName)
+            button.toolTip = l10n.statusItemTooltip
             button.target = self
             button.action = #selector(statusItemClicked(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -114,18 +147,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showStatusContextMenu(from button: NSStatusBarButton) {
+        let l10n = L10n(settingsStore.resolvedLanguage)
         let menu = NSMenu()
-        menu.addItem(withTitle: "菜单栏快译", action: #selector(openPopoverAction), keyEquivalent: "")
-        menu.addItem(withTitle: "打开大窗口", action: #selector(openMainWindowAction), keyEquivalent: "")
+        menu.addItem(withTitle: l10n.statusQuickTranslate, action: #selector(openPopoverAction), keyEquivalent: "")
+        menu.addItem(withTitle: l10n.statusOpenMainWindow, action: #selector(openMainWindowAction), keyEquivalent: "")
         menu.addItem(
-            withTitle: desktopWidgetController.isVisible ? "隐藏桌面悬浮小窗" : "打开桌面悬浮小窗",
+            withTitle: desktopWidgetController.isVisible ? l10n.statusHideMiniWidget : l10n.statusShowMiniWidget,
             action: #selector(toggleDesktopWidgetAction),
             keyEquivalent: ""
         )
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: "设置…", action: #selector(openSettingsAction), keyEquivalent: ",")
+        menu.addItem(withTitle: l10n.menuSettings, action: #selector(openSettingsAction), keyEquivalent: ",")
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: "退出 渡 Ferry",action: #selector(quitAction), keyEquivalent: "q")
+        menu.addItem(withTitle: l10n.menuQuitApp, action: #selector(quitAction), keyEquivalent: "q")
 
         for item in menu.items {
             item.target = self
@@ -298,7 +332,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "渡 Ferry"
+        window.title = L10n(settingsStore.resolvedLanguage).brandName
         window.minSize = NSSize(width: 760, height: 460)
         Self.applyStageChrome(to: window)
         window.isReleasedWhenClosed = false
@@ -325,6 +359,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let copyMonitor = self.copyMonitor
         let translatorService = self.translatorService
         let speechService = self.speechService
+        let launchAtLogin = self.launchAtLogin
         let settingsUIState = self.settingsUIState
 
         let rootView = SettingsView(
@@ -332,6 +367,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             copyMonitor: copyMonitor,
             translatorService: translatorService,
             speechService: speechService,
+            launchAtLogin: launchAtLogin,
             uiState: settingsUIState
         )
 
@@ -341,7 +377,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "渡 Ferry 设置"
+        window.title = L10n(settingsStore.resolvedLanguage).settingsWindowTitle
         Self.applyStageChrome(to: window)
         window.isReleasedWhenClosed = false
         let hostingController = NSHostingController(rootView: rootView)

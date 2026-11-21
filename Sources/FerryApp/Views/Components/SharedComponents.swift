@@ -101,7 +101,10 @@ public struct SmartTextView: NSViewRepresentable {
             textView.string = text
             textView.needsDisplay = true
         }
-        textView.placeholderText = placeholder
+        if textView.placeholderText != placeholder {
+            textView.placeholderText = placeholder
+            textView.needsDisplay = true
+        }
         textView.submitOnEnter = submitOnEnter
         textView.onSubmit = onSubmit
         textView.font = NSFont.systemFont(ofSize: fontSize)
@@ -186,6 +189,7 @@ final class SubmitHandlingTextView: NSTextView {
 public struct LanguagePickerControl: View {
     @Binding public var selection: TargetLanguage
     public var compact: Bool
+    @Environment(\.appLanguage) private var appLanguage
 
     public init(selection: Binding<TargetLanguage>, compact: Bool = false) {
         self._selection = selection
@@ -199,7 +203,7 @@ public struct LanguagePickerControl: View {
                     selection = lang
                 } label: {
                     HStack {
-                        Text(lang.displayName)
+                        Text(lang.displayName(in: appLanguage))
                         if lang == selection {
                             Image(systemName: "checkmark")
                         }
@@ -210,7 +214,7 @@ public struct LanguagePickerControl: View {
             HStack(spacing: 4) {
                 Image(systemName: "globe")
                     .font(.system(size: 11, weight: .medium))
-                Text(compact ? selection.shortName : selection.displayName)
+                Text(compact ? selection.shortName(in: appLanguage) : selection.displayName(in: appLanguage))
                     .font(.system(size: 11.5, weight: .medium))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .semibold))
@@ -231,6 +235,7 @@ public struct CopyResultButton: View {
     public let copied: Bool
     public let disabled: Bool
     public let action: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
 
     public init(copied: Bool, disabled: Bool, action: @escaping () -> Void) {
         self.copied = copied
@@ -239,12 +244,13 @@ public struct CopyResultButton: View {
     }
 
     public var body: some View {
+        let l10n = L10n(appLanguage)
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
                     .font(.system(size: 11, weight: .medium))
                     .contentTransition(.symbolEffect(.replace))
-                Text(copied ? "已复制" : "复制")
+                Text(copied ? l10n.copied : l10n.copy)
                     .font(.system(size: 12, weight: .medium))
                     .contentTransition(.opacity)
             }
@@ -261,6 +267,7 @@ public struct ErrorBannerView: View {
     public let message: String
     public let showSettingsAction: Bool
     public let onOpenSettings: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
 
     public init(message: String, showSettingsAction: Bool = false, onOpenSettings: @escaping () -> Void) {
         self.message = message
@@ -269,6 +276,7 @@ public struct ErrorBannerView: View {
     }
 
     public var body: some View {
+        let l10n = L10n(appLanguage)
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -281,7 +289,7 @@ public struct ErrorBannerView: View {
                     .textSelection(.enabled)
             }
             if showSettingsAction {
-                Button("打开设置配置 API Key") {
+                Button(l10n.openSettingsForAPIKey) {
                     onOpenSettings()
                 }
                 .buttonStyle(.borderedProminent)
@@ -299,15 +307,16 @@ public struct SpeakButton: View {
     public let id: String
     public let text: String
     public var languageHint: TargetLanguage? = nil
-    public var help: String = "朗读"
+    public var help: String? = nil
     public var size: CGFloat = 26
+    @Environment(\.appLanguage) private var appLanguage
 
     public init(
         speechService: SpeechService,
         id: String,
         text: String,
         languageHint: TargetLanguage? = nil,
-        help: String = "朗读",
+        help: String? = nil,
         size: CGFloat = 26
     ) {
         self.speechService = speechService
@@ -331,6 +340,8 @@ public struct SpeakButton: View {
     }
 
     public var body: some View {
+        let l10n = L10n(appLanguage)
+        let idleHelp = help ?? l10n.speak
         Button {
             speechService.toggleSpeak(text: text, id: id, languageHint: languageHint)
         } label: {
@@ -346,8 +357,8 @@ public struct SpeakButton: View {
         }
         .buttonStyle(HoverIconButtonStyle(isOn: isSpeaking || isLoading, size: size))
         .disabled(isDisabled)
-        .help(isSpeaking ? "停止朗读" : (isLoading ? "正在合成语音…" : help))
-        .accessibilityLabel(isSpeaking ? "停止朗读" : help)
+        .help(isSpeaking ? l10n.stopSpeaking : (isLoading ? l10n.synthesizingSpeech : idleHelp))
+        .accessibilityLabel(isSpeaking ? l10n.stopSpeaking : idleHelp)
     }
 }
 

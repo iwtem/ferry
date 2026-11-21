@@ -8,18 +8,26 @@ public enum SpeechEngine: String, CaseIterable, Codable, Identifiable, Sendable 
     public var id: String { rawValue }
 
     public var displayName: String {
+        displayName(in: FerryLocalization.resolved)
+    }
+
+    public func displayName(in language: ResolvedAppLanguage) -> String {
         switch self {
-        case .system: return "系统语音"
-        case .bailian: return "阿里百炼 TTS"
+        case .system: return FerryLocalization.text(zh: "系统语音", en: "System Voice", in: language)
+        case .bailian: return FerryLocalization.text(zh: "阿里百炼 TTS", en: "Bailian TTS", in: language)
         case .openAI: return "OpenAI TTS"
         }
     }
 
     public var subtitle: String {
+        subtitle(in: FerryLocalization.resolved)
+    }
+
+    public func subtitle(in language: ResolvedAppLanguage) -> String {
         switch self {
-        case .system: return "离线秒响 · 免费"
-        case .bailian: return "Qwen-TTS · 复用百炼 Key"
-        case .openAI: return "/audio/speech · 复用自定义 Key"
+        case .system: return FerryLocalization.text(zh: "离线秒响 · 免费", en: "Offline & instant · Free", in: language)
+        case .bailian: return FerryLocalization.text(zh: "Qwen-TTS · 复用百炼 Key", en: "Qwen-TTS · Uses Bailian key", in: language)
+        case .openAI: return FerryLocalization.text(zh: "/audio/speech · 复用自定义 Key", en: "/audio/speech · Uses Custom key", in: language)
         }
     }
 }
@@ -31,9 +39,13 @@ public enum EnglishAccent: String, CaseIterable, Codable, Identifiable, Sendable
     public var id: String { rawValue }
 
     public var displayName: String {
+        displayName(in: FerryLocalization.resolved)
+    }
+
+    public func displayName(in language: ResolvedAppLanguage) -> String {
         switch self {
-        case .us: return "美式英语 (US)"
-        case .gb: return "英式英语 (UK)"
+        case .us: return FerryLocalization.text(zh: "美式英语 (US)", en: "American (US)", in: language)
+        case .gb: return FerryLocalization.text(zh: "英式英语 (UK)", en: "British (UK)", in: language)
         }
     }
 }

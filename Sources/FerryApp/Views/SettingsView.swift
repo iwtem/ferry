@@ -9,53 +9,19 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
-    var title: String {
-        switch self {
-        case .models: return "模型"
-        case .shortcut: return "划词"
-        case .general: return "通用"
-        }
+    func title(in language: ResolvedAppLanguage) -> String {
+        L10n(language).settingsPaneTitle(self)
     }
 
-    var tagline: String {
-        switch self {
-        case .models: return "选一个服务商，填好 Key 就能翻译"
-        case .shortcut: return "选中文字，连按两次 ⌘C"
-        case .general: return "外观、语言、朗读与数据"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .models: return "cpu"
-        case .shortcut: return "command"
-        case .general: return "slider.horizontal.3"
-        }
+    func tagline(in language: ResolvedAppLanguage) -> String {
+        L10n(language).settingsPaneTagline(self)
     }
 
     var hue: StageHue {
         switch self {
         case .models: return .teal
         case .shortcut: return .coral
-        case .general: return .violet
-        }
-    }
-}
-
-extension ProviderKind {
-    var stageHue: StageHue {
-        switch self {
-        case .deepseek: return StageHue(top: Color(hex: 0x7D9BFF), bottom: Color(hex: 0x3D5AFE))
-        case .bailian: return .amber
-        case .custom: return .violet
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .deepseek: return "fish.fill"
-        case .bailian: return "cloud.fill"
-        case .custom: return "puzzlepiece.extension.fill"
+        case .general: return .azure
         }
     }
 }
@@ -82,6 +48,7 @@ public struct SettingsView: View {
     public var copyMonitor: GlobalCopyMonitor
     public var translatorService: LLMTranslatorService
     public var speechService: SpeechService
+    public var launchAtLogin: LaunchAtLoginService
     @Bindable public var uiState: SettingsUIState
 
     public static let windowSize = CGSize(width: 780, height: 600)
@@ -91,18 +58,23 @@ public struct SettingsView: View {
         copyMonitor: GlobalCopyMonitor,
         translatorService: LLMTranslatorService,
         speechService: SpeechService,
+        launchAtLogin: LaunchAtLoginService = LaunchAtLoginService(),
         uiState: SettingsUIState
     ) {
         self.settingsStore = settingsStore
         self.copyMonitor = copyMonitor
         self.translatorService = translatorService
         self.speechService = speechService
+        self.launchAtLogin = launchAtLogin
         self.uiState = uiState
     }
 
     private var needsAccessibilityAttention: Bool {
         settingsStore.settings.doubleCopyEnabled && !copyMonitor.isAccessibilityTrusted
     }
+
+    private var lang: ResolvedAppLanguage { settingsStore.resolvedLanguage }
+    private var l10n: L10n { L10n(lang) }
 
     public var body: some View {
         HStack(spacing: 0) {
@@ -112,8 +84,10 @@ public struct SettingsView: View {
         .frame(width: Self.windowSize.width, height: Self.windowSize.height)
         .background(StageBackdrop(hue: uiState.selectedPane.hue))
         .tint(FerryTheme.accent)
+        .ferryLocalized(lang)
         .onAppear {
             copyMonitor.refreshPermissionStatus()
+            launchAtLogin.refreshStatus()
             uiState.selectedProviderTab = settingsStore.settings.activeProvider
         }
         .onChange(of: settingsStore.settings.activeProvider) { _, newValue in
@@ -127,7 +101,7 @@ public struct SettingsView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 FerryLogo(height: 16, color: FerryTheme.accentText)
-                Text("渡 Ferry")
+                Text(l10n.brandName)
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
             }
@@ -190,8 +164,13 @@ public struct SettingsView: View {
     }
 
     private func hero(_ pane: SettingsPane) -> some View {
-        StageHero(systemName: pane.systemImage, hue: pane.hue, title: pane.title, tagline: pane.tagline)
-            .background(WindowDragArea())
+        StageHero(
+            title: pane.title(in: lang),
+            tagline: pane.tagline(in: lang)
+        ) {
+            SettingsPaneBadge(pane: pane, size: 46, filled: true)
+        }
+        .background(WindowDragArea())
     }
 
     // MARK: - Models
@@ -223,14 +202,14 @@ public struct SettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                GlassLabel("\(provider.shortName) 连接")
+                GlassLabel(l10n.providerConnectionLabel(provider))
                 GlassCard {
                     GlassRow(title: "API Key") {
                         GlassField(placeholder: "sk-…", text: apiKeyBinding(for: provider), secure: true)
                             .frame(width: 320)
                     }
 
-                    GlassRow(title: "接口地址") {
+                    GlassRow(title: l10n.endpointURL) {
                         HStack(spacing: 6) {
                             GlassField(
                                 placeholder: provider.defaultBaseURL,
@@ -245,7 +224,7 @@ public struct SettingsView: View {
                                 )
                             )
                             if customBaseURL {
-                                GlassIconButton(systemName: "arrow.uturn.backward", help: "恢复默认地址") {
+                                GlassIconButton(systemName: "arrow.uturn.backward", help: l10n.restoreDefaultURLHelp) {
                                     var updated = settingsStore.profile(for: provider)
                                     updated.baseURL = provider.defaultBaseURL
                                     updated.fetchedModels = []
@@ -258,7 +237,7 @@ public struct SettingsView: View {
                         .frame(width: 320)
                     }
 
-                    GlassRow(title: "模型", caption: hasCustomModel ? "已被自定义模型覆盖" : nil) {
+                    GlassRow(title: l10n.model, caption: hasCustomModel ? l10n.overriddenByCustomModel : nil) {
                         HStack(spacing: 6) {
                             ModelPickerButton(
                                 models: profile.selectableModels(for: provider),
@@ -282,13 +261,13 @@ public struct SettingsView: View {
                             }
                             .buttonStyle(GlassIconStyle())
                             .disabled(uiState.isFetchingModels)
-                            .help("从服务商拉取模型列表")
+                            .help(l10n.fetchModelsHelp)
                         }
                     }
 
-                    GlassRow(title: "自定义模型", divider: false) {
+                    GlassRow(title: l10n.customModel, divider: false) {
                         GlassField(
-                            placeholder: "可选，填写模型 ID",
+                            placeholder: l10n.customModelPlaceholder,
                             text: Binding(
                                 get: { profile.customModel },
                                 set: { newValue in
@@ -323,7 +302,7 @@ public struct SettingsView: View {
                         } else {
                             Image(systemName: "bolt.fill").font(.system(size: 11))
                         }
-                        Text(uiState.isTestingConnection ? "测试中" : "测试连接")
+                        Text(uiState.isTestingConnection ? l10n.testingConnection : l10n.testConnection)
                     }
                 }
                 .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: 30))
@@ -351,9 +330,9 @@ public struct SettingsView: View {
             return message.text
         }
         if profile.fetchedModels.isEmpty {
-            return "内置推荐列表 · 填好 Key 后点 ↻ 拉取全部模型"
+            return l10n.builtInModelListFooter
         }
-        return "\(profile.fetchedModels.count) 个可用模型"
+        return l10n.availableModelsCount(profile.fetchedModels.count)
     }
 
     private func modelFooterColor(_ provider: ProviderKind) -> Color {
@@ -378,17 +357,19 @@ public struct SettingsView: View {
 
         return VStack(alignment: .leading, spacing: 22) {
             StageHero(
-                systemName: SettingsPane.shortcut.systemImage,
-                hue: SettingsPane.shortcut.hue,
-                title: SettingsPane.shortcut.title,
-                tagline: SettingsPane.shortcut.tagline
-            ) {
-                DoubleCopyKeys()
-            }
+                title: SettingsPane.shortcut.title(in: lang),
+                tagline: SettingsPane.shortcut.tagline(in: lang),
+                icon: {
+                    SettingsPaneBadge(pane: .shortcut, size: 46, filled: true)
+                },
+                accessory: {
+                    DoubleCopyKeys()
+                }
+            )
             .background(WindowDragArea())
 
             GlassCard {
-                GlassRow(title: "双击 ⌘C 翻译") {
+                GlassRow(title: l10n.doubleCopyToggle) {
                     GlassToggle(isOn: Binding(
                         get: { settingsStore.settings.doubleCopyEnabled },
                         set: { newValue in
@@ -398,7 +379,7 @@ public struct SettingsView: View {
                         }
                     ))
                 }
-                GlassRow(title: "按键间隔", caption: "按得慢就调大一点", divider: false) {
+                GlassRow(title: l10n.doubleCopyInterval, caption: l10n.doubleCopyIntervalCaption, divider: false) {
                     HStack(spacing: 10) {
                         Slider(
                             value: Binding(
@@ -420,7 +401,7 @@ public struct SettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                GlassLabel("系统权限")
+                GlassLabel(l10n.systemPermissionsLabel)
                 GlassCard {
                     HStack(spacing: 12) {
                         HueTile(
@@ -430,18 +411,18 @@ public struct SettingsView: View {
                         )
                         .contentTransition(.symbolEffect(.replace))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("辅助功能")
+                            Text(l10n.accessibilityTitle)
                                 .font(.system(size: 13, weight: .medium))
-                            Text(trusted ? "可以在任意应用里划词" : "授权后才能识别双击 ⌘C")
+                            Text(trusted ? l10n.accessibilityGrantedCaption : l10n.accessibilityDeniedCaption)
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
                         StatusPill(
-                            text: trusted ? "已授权" : "未授权",
+                            text: trusted ? l10n.grantedPill : l10n.notGrantedPill,
                             color: trusted ? Stage.ok : Stage.warn
                         )
-                        GlassIconButton(systemName: "arrow.clockwise", help: "重新检测") {
+                        GlassIconButton(systemName: "arrow.clockwise", help: l10n.recheckPermissionHelp) {
                             withAnimation(FerryMotion.animation(FerryMotion.spring)) {
                                 copyMonitor.refreshPermissionStatus()
                             }
@@ -454,16 +435,16 @@ public struct SettingsView: View {
                         Rectangle().fill(Stage.hairline).frame(height: 1)
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(spacing: 8) {
-                                Button("打开系统设置") {
+                                Button(l10n.openSystemSettings) {
                                     copyMonitor.openAccessibilitySettings()
                                 }
                                 .buttonStyle(GlassButtonStyle(kind: .glow, hue: .coral))
-                                Button("请求授权") {
+                                Button(l10n.requestAccess) {
                                     copyMonitor.requestAccessibilityPermission()
                                 }
                                 .buttonStyle(GlassButtonStyle())
                             }
-                            Text("已勾选仍显示未授权？在列表里删掉 Ferry，再重新添加。")
+                            Text(l10n.accessibilityTroubleshootTip)
                                 .font(.system(size: 11))
                                 .foregroundStyle(Stage.textTertiary)
                         }
@@ -471,7 +452,7 @@ public struct SettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                Text("只在识别到双击 ⌘C 时读取一次剪贴板，不记录其他按键。")
+                Text(l10n.clipboardPrivacyNote)
                     .font(.system(size: 11))
                     .foregroundStyle(Stage.textTertiary)
                     .padding(.horizontal, 4)
@@ -487,7 +468,7 @@ public struct SettingsView: View {
             hero(.general)
 
             GlassCard {
-                GlassRow(title: "外观", divider: false) {
+                GlassRow(title: l10n.appearance) {
                     GlassSegmented(
                         items: AppearanceMode.allCases,
                         selection: Binding(
@@ -497,7 +478,7 @@ public struct SettingsView: View {
                                 FerryAppearance.apply(newValue)
                             }
                         ),
-                        title: { $0.displayName },
+                        title: { $0.displayName(in: lang) },
                         systemImage: { mode in
                             switch mode {
                             case .system: return "circle.lefthalf.filled"
@@ -508,22 +489,66 @@ public struct SettingsView: View {
                     )
                     .frame(width: 300)
                 }
+
+                GlassRow(
+                    title: l10n.interfaceLanguage,
+                    caption: settingsStore.settings.language == .system ? l10n.systemLanguageCaption(lang) : nil
+                ) {
+                    GlassSegmented(
+                        items: AppLanguage.allCases,
+                        selection: Binding(
+                            get: { settingsStore.settings.language },
+                            set: { settingsStore.settings.language = $0 }
+                        ),
+                        title: { $0.displayName(in: lang) }
+                    )
+                    .frame(width: 300)
+                }
+
+                GlassRow(
+                    title: l10n.launchAtLogin,
+                    caption: launchAtLogin.requiresApproval
+                        ? l10n.launchAtLoginNeedsApprovalCaption
+                        : l10n.launchAtLoginCaption,
+                    divider: false
+                ) {
+                    HStack(spacing: 8) {
+                        if launchAtLogin.requiresApproval {
+                            Button(l10n.openLoginItems) {
+                                launchAtLogin.openLoginItemsSettings()
+                            }
+                            .buttonStyle(GlassButtonStyle(kind: .glass, height: 24))
+                        }
+                        GlassToggle(isOn: Binding(
+                            get: { launchAtLogin.isEnabled },
+                            set: { launchAtLogin.setEnabled($0) }
+                        ))
+                    }
+                }
+
+                if let error = launchAtLogin.lastErrorMessage {
+                    Rectangle().fill(Stage.hairline).frame(height: 1)
+                    StatusLine(text: error, success: false)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                GlassLabel("翻译")
+                GlassLabel(l10n.translationSectionLabel)
                 GlassCard {
-                    GlassRow(title: "默认目标语言", caption: "自动：中文译英文，其他译中文") {
+                    GlassRow(title: l10n.defaultTargetLanguage, caption: l10n.defaultTargetLanguageCaption) {
                         GlassPicker(
                             items: TargetLanguage.allCases,
                             selection: Binding(
                                 get: { settingsStore.settings.defaultTargetLanguage },
                                 set: { settingsStore.settings.defaultTargetLanguage = $0 }
                             ),
-                            title: { $0.displayName }
+                            title: { $0.displayName(in: lang) }
                         )
                     }
-                    GlassRow(title: "单词释义", caption: "查单词时显示音标、词性和例句", divider: false) {
+                    GlassRow(title: l10n.wordLookup, caption: l10n.wordLookupCaption, divider: false) {
                         GlassToggle(isOn: Binding(
                             get: { settingsStore.settings.wordLookupEnabled },
                             set: { settingsStore.settings.wordLookupEnabled = $0 }
@@ -535,20 +560,20 @@ public struct SettingsView: View {
             speechSection
 
             VStack(alignment: .leading, spacing: 8) {
-                GlassLabel("其他")
+                GlassLabel(l10n.otherSectionLabel)
                 GlassCard {
-                    GlassRow(title: "桌面小窗默认置顶") {
+                    GlassRow(title: l10n.widgetAlwaysOnTop) {
                         GlassToggle(isOn: Binding(
                             get: { settingsStore.settings.desktopWidgetAlwaysOnTop },
                             set: { settingsStore.settings.desktopWidgetAlwaysOnTop = $0 }
                         ))
                     }
                     GlassRow(
-                        title: "翻译记录",
-                        caption: "\(settingsStore.recentRecords.count) 条 · 设置和 Key 只存在本机",
+                        title: l10n.translationHistory,
+                        caption: l10n.translationHistoryCaption(settingsStore.recentRecords.count),
                         divider: false
                     ) {
-                        Button("清空") {
+                        Button(l10n.clear) {
                             withAnimation(FerryMotion.animation(FerryMotion.quick)) {
                                 settingsStore.clearRecentRecords()
                             }
@@ -562,23 +587,15 @@ public struct SettingsView: View {
     }
 
     private func engineLabel(_ engine: SpeechEngine) -> String {
-        switch engine {
-        case .system: return "系统"
-        case .bailian: return "百炼"
-        case .openAI: return "OpenAI"
-        }
+        l10n.speechEngineLabel(engine)
     }
 
     private func engineCaption(_ engine: SpeechEngine) -> String {
-        switch engine {
-        case .system: return "离线、免费。可在系统设置里下载增强语音"
-        case .bailian: return "复用百炼的 Key，自动缓存最近 30 条"
-        case .openAI: return "复用自定义服务的地址和 Key，自动缓存最近 30 条"
-        }
+        l10n.speechEngineCaption(engine)
     }
 
     private var rateRow: some View {
-        GlassRow(title: "语速") {
+        GlassRow(title: l10n.speechRate) {
             HStack(spacing: 10) {
                 Slider(
                     value: Binding(
@@ -601,7 +618,7 @@ public struct SettingsView: View {
         let speech = settingsStore.settings.speech
 
         return VStack(alignment: .leading, spacing: 8) {
-            GlassLabel("朗读")
+            GlassLabel(l10n.speechSectionLabel)
             GlassCard {
                 VStack(alignment: .leading, spacing: 8) {
                     GlassSegmented(
@@ -627,20 +644,20 @@ public struct SettingsView: View {
 
                 switch speech.engine {
                 case .system:
-                    GlassRow(title: "英语口音") {
+                    GlassRow(title: l10n.englishAccent) {
                         GlassPicker(
                             items: EnglishAccent.allCases,
                             selection: Binding(
                                 get: { settingsStore.settings.speech.englishAccent },
                                 set: { settingsStore.settings.speech.englishAccent = $0 }
                             ),
-                            title: { $0.displayName }
+                            title: { $0.displayName(in: lang) }
                         )
                     }
                     rateRow
 
                 case .bailian:
-                    GlassRow(title: "音色") {
+                    GlassRow(title: l10n.voice) {
                         GlassPicker(
                             items: SpeechSettings.bailianVoices,
                             selection: Binding(
@@ -650,7 +667,7 @@ public struct SettingsView: View {
                             title: { $0 }
                         )
                     }
-                    GlassRow(title: "TTS 模型") {
+                    GlassRow(title: l10n.ttsModel) {
                         GlassField(
                             placeholder: "qwen3-tts-flash",
                             text: Binding(
@@ -662,7 +679,7 @@ public struct SettingsView: View {
                     }
 
                 case .openAI:
-                    GlassRow(title: "音色") {
+                    GlassRow(title: l10n.voice) {
                         GlassPicker(
                             items: SpeechSettings.openAIVoices,
                             selection: Binding(
@@ -672,7 +689,7 @@ public struct SettingsView: View {
                             title: { $0 }
                         )
                     }
-                    GlassRow(title: "TTS 模型") {
+                    GlassRow(title: l10n.ttsModel) {
                         GlassField(
                             placeholder: "gpt-4o-mini-tts",
                             text: Binding(
@@ -685,7 +702,7 @@ public struct SettingsView: View {
                     rateRow
                 }
 
-                GlassRow(title: "试听", divider: false) {
+                GlassRow(title: l10n.previewSpeech, divider: false) {
                     HStack(spacing: 6) {
                         previewButton(
                             id: "settings-preview-en",
@@ -728,7 +745,7 @@ public struct SettingsView: View {
                 Text(label)
             }
         }
-        .buttonStyle(GlassButtonStyle(kind: active ? .glow : .glass, hue: .violet))
+        .buttonStyle(GlassButtonStyle(kind: active ? .glow : .glass, hue: .azure))
     }
 
     private static var appVersion: String {
@@ -755,11 +772,13 @@ public struct SettingsView: View {
                 var updated = settingsStore.profile(for: provider)
                 updated.fetchedModels = models
                 settingsStore.updateProfile(updated, for: provider)
+                let l10n = L10n(settingsStore.resolvedLanguage)
                 uiState.modelFetchMessage[provider] = models.isEmpty
-                    ? ("服务商没有返回对话模型，继续用内置列表", false)
-                    : ("\(models.count) 个可用模型", true)
+                    ? (l10n.noChatModelsReturned, false)
+                    : (l10n.availableModelsCount(models.count), true)
             } catch {
-                uiState.modelFetchMessage[provider] = ("拉取失败：\(error.localizedDescription)", false)
+                let l10n = L10n(settingsStore.resolvedLanguage)
+                uiState.modelFetchMessage[provider] = (l10n.fetchModelsFailed(error.localizedDescription), false)
             }
             uiState.isFetchingModels = false
         }
@@ -794,13 +813,13 @@ private struct SidebarItem: View {
     let alert: Bool
     let action: () -> Void
     @ViewState private var hovering = false
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                HueTile(systemName: pane.systemImage, hue: pane.hue, size: 24)
-                    .shadow(color: selected ? pane.hue.bottom.opacity(0.6) : .clear, radius: 6)
-                Text(pane.title)
+                SettingsPaneBadge(pane: pane, size: 26, filled: selected)
+                Text(pane.title(in: appLanguage))
                     .font(.system(size: 13, weight: selected ? .semibold : .medium))
                     .foregroundStyle(selected ? Color.primary : Stage.textSecondary)
                 Spacer(minLength: 0)
@@ -808,18 +827,17 @@ private struct SidebarItem: View {
                     Circle()
                         .fill(Stage.warn)
                         .frame(width: 7, height: 7)
-                        .shadow(color: Stage.warn, radius: 3)
                 }
             }
             .padding(.horizontal, 8)
             .frame(height: 36)
             .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(selected ? Stage.selectedFill : (hovering ? Stage.controlFill : .clear))
-                    .shadow(color: selected ? Stage.cardShadow : .clear, radius: 3, y: 1)
+                    .shadow(color: selected ? Stage.cardShadow : .clear, radius: 4, y: 1)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(selected ? Stage.selectedStroke : .clear, lineWidth: 1)
             )
             .contentShape(Rectangle())
@@ -839,17 +857,20 @@ private struct ProviderTile: View {
     let selected: Bool
     let action: () -> Void
     @ViewState private var hovering = false
+    @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let l10n = L10n(appLanguage)
+        let dark = colorScheme == .dark
         Button(action: action) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
-                    HueTile(systemName: kind.symbol, hue: kind.stageHue, size: 30)
-                        .shadow(color: kind.stageHue.bottom.opacity(selected ? 0.6 : 0), radius: 8)
+                    ProviderBrandBadge(kind: kind, size: 36)
                     Spacer()
                     if selected {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 15))
+                            .font(.system(size: 16))
                             .foregroundStyle(.white, FerryTheme.accent)
                             .transition(.scale.combined(with: .opacity))
                     } else {
@@ -857,36 +878,48 @@ private struct ProviderTile: View {
                             .fill(configured ? Stage.ok : Stage.controlHover)
                             .frame(width: 7, height: 7)
                             .padding(4)
-                            .help(configured ? "已填 Key" : "未填 Key")
+                            .help(configured ? l10n.keyConfigured : l10n.keyMissing)
                     }
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(kind.shortName)
+                    Text(kind.shortName(in: appLanguage))
                         .font(.system(size: 13.5, weight: .semibold))
                         .foregroundStyle(.primary)
-                    Text(configured ? model : "未填 Key")
+                    Text(configured ? model : l10n.keyMissing)
                         .font(.system(size: 10.5, design: configured ? .monospaced : .default))
                         .foregroundStyle(configured ? Stage.textSecondary : Stage.textTertiary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
             }
-            .padding(12)
+            .padding(13)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(selected ? FerryTheme.accent.opacity(0.14) : (hovering ? Stage.glassFillHover : Stage.glassFill))
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(selected ? Stage.selectedFill : (hovering ? Stage.glassFillHover : Stage.glassFill))
+                    if selected {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(FerryTheme.accent.opacity(dark ? 0.12 : 0.045))
+                    }
+                }
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .strokeBorder(
                         selected
-                            ? AnyShapeStyle(StageHue.teal.gradient)
+                            ? AnyShapeStyle(FerryTheme.accent)
                             : AnyShapeStyle(Stage.glassStroke),
                         lineWidth: selected ? 1.5 : 1
                     )
             )
-            .shadow(color: selected ? FerryTheme.accent.opacity(0.3) : .clear, radius: 12, y: 2)
+            .shadow(
+                color: selected
+                    ? (dark ? FerryTheme.accent.opacity(0.18) : Color.black.opacity(0.06))
+                    : Stage.cardShadow,
+                radius: selected ? 10 : 6,
+                y: selected ? 3 : 2
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(PressScaleStyle())
@@ -938,6 +971,7 @@ struct ModelPickerButton: View {
     @Binding var selection: String
     @ViewState private var showing = false
     @ViewState private var query = ""
+    @Environment(\.appLanguage) private var appLanguage
 
     private var filtered: [String] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -945,6 +979,7 @@ struct ModelPickerButton: View {
     }
 
     var body: some View {
+        let l10n = L10n(appLanguage)
         Button {
             showing.toggle()
         } label: {
@@ -955,7 +990,7 @@ struct ModelPickerButton: View {
         .fixedSize()
         .popover(isPresented: $showing, arrowEdge: .bottom) {
             VStack(spacing: 8) {
-                GlassField(placeholder: "搜索 \(models.count) 个模型", text: $query, monospaced: false)
+                GlassField(placeholder: l10n.searchModelsPlaceholder(models.count), text: $query, monospaced: false)
 
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -968,7 +1003,7 @@ struct ModelPickerButton: View {
                                 .id(model)
                             }
                             if filtered.isEmpty {
-                                Text("没有匹配的模型，可以填到「自定义模型」")
+                                Text(l10n.noMatchingModels)
                                     .font(.system(size: 12))
                                     .foregroundStyle(.secondary)
                                     .padding(.vertical, 16)
@@ -980,6 +1015,7 @@ struct ModelPickerButton: View {
             }
             .padding(10)
             .frame(width: 320, height: 340)
+            .ferryLocalized(appLanguage)
             .onDisappear { query = "" }
         }
     }

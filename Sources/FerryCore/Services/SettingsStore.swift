@@ -6,8 +6,16 @@ import Observation
 public final class SettingsStore {
     public var settings: AppSettings {
         didSet {
+            if oldValue.language != settings.language {
+                FerryLocalization.languageSetting = settings.language
+                NotificationCenter.default.post(name: .ferryLanguageDidChange, object: nil)
+            }
             saveSettings()
         }
+    }
+
+    public var resolvedLanguage: ResolvedAppLanguage {
+        ResolvedAppLanguage.resolve(settings.language)
     }
 
     public var apiKeys: [ProviderKind: String] {
@@ -52,6 +60,7 @@ public final class SettingsStore {
         for kind in ProviderKind.allCases where self.settings.profiles[kind] == nil {
             self.settings.profiles[kind] = .defaultProfile(for: kind)
         }
+        FerryLocalization.languageSetting = self.settings.language
     }
 
     public func apiKey(for kind: ProviderKind) -> String {

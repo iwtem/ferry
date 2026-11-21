@@ -9,30 +9,71 @@ public enum TranslationError: LocalizedError, Sendable {
     case invalidResponse
 
     public var errorDescription: String? {
+        let lang = FerryLocalization.resolved
         switch self {
         case .emptyInput:
-            return "请输入需要翻译的文本"
+            return FerryLocalization.text(
+                zh: "请输入需要翻译的文本",
+                en: "Please enter text to translate.",
+                in: lang
+            )
         case .missingAPIKey(let provider):
-            return "尚未配置 \(provider.shortName) 的 API Key，请先打开「设置」填写。"
+            return FerryLocalization.text(
+                zh: "尚未配置 \(provider.shortName(in: .zhHans)) 的 API Key，请先打开「设置」填写。",
+                en: "No API Key configured for \(provider.shortName(in: .en)). Open Settings to add one.",
+                in: lang
+            )
         case .invalidBaseURL(let url):
-            return "接口地址格式无效：\(url)"
+            return FerryLocalization.text(
+                zh: "接口地址格式无效：\(url)",
+                en: "Invalid endpoint URL: \(url)",
+                in: lang
+            )
         case .httpError(let statusCode, let message):
             switch statusCode {
             case 401:
-                return "API Key 无效或未授权 (401)，请检查设置中的 Key 是否正确。"
+                return FerryLocalization.text(
+                    zh: "API Key 无效或未授权 (401)，请检查设置中的 Key 是否正确。",
+                    en: "Invalid or unauthorized API Key (401). Please check your key in Settings.",
+                    in: lang
+                )
             case 402:
-                return "账户余额不足 (402)，请检查模型服务商控制台余额。"
+                return FerryLocalization.text(
+                    zh: "账户余额不足 (402)，请检查模型服务商控制台余额。",
+                    en: "Insufficient account balance (402). Please check your provider billing.",
+                    in: lang
+                )
             case 404:
-                return "接口地址或模型名称不存在 (404)：\(message)"
+                return FerryLocalization.text(
+                    zh: "接口地址或模型名称不存在 (404)：\(message)",
+                    en: "Endpoint or model not found (404): \(message)",
+                    in: lang
+                )
             case 429:
-                return "请求过于频繁或触发限流 (429)，请稍后再试。"
+                return FerryLocalization.text(
+                    zh: "请求过于频繁或触发限流 (429)，请稍后再试。",
+                    en: "Too many requests or rate limited (429). Please try again shortly.",
+                    in: lang
+                )
             default:
-                return "请求失败 (HTTP \(statusCode))：\(message)"
+                return FerryLocalization.text(
+                    zh: "请求失败 (HTTP \(statusCode))：\(message)",
+                    en: "Request failed (HTTP \(statusCode)): \(message)",
+                    in: lang
+                )
             }
         case .networkError(let message):
-            return "网络连接失败：\(message)"
+            return FerryLocalization.text(
+                zh: "网络连接失败：\(message)",
+                en: "Network error: \(message)",
+                in: lang
+            )
         case .invalidResponse:
-            return "服务端返回了无法解析的响应"
+            return FerryLocalization.text(
+                zh: "服务端返回了无法解析的响应",
+                en: "Received an unreadable response from the server.",
+                in: lang
+            )
         }
     }
 }
@@ -185,7 +226,7 @@ public final class LLMTranslatorService: Sendable {
            !content.isEmpty {
             return content
         }
-        return "连接成功"
+        return FerryLocalization.text(zh: "连接成功", en: "Connected")
     }
 
     /// Lists the provider's models via the OpenAI-compatible `GET {baseURL}/models` endpoint.
@@ -328,7 +369,7 @@ public final class LLMTranslatorService: Sendable {
             }
         }
         let compact = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        return compact.isEmpty ? "未知错误" : String(compact.prefix(200))
+        return compact.isEmpty ? FerryLocalization.text(zh: "未知错误", en: "Unknown error") : String(compact.prefix(200))
     }
 }
 
