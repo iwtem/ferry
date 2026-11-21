@@ -575,12 +575,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             onOpenScreenRecordingSettings: onOpenScreenRecordingSettings
         )
 
-        let window = NSWindow(
+        let window = AlignedChromeWindow(
             contentRect: NSRect(x: 0, y: 0, width: 940, height: 600),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        window.headerHeight = MainWindowView.headerHeight
         window.title = L10n(settingsStore.resolvedLanguage).brandName
         window.minSize = NSSize(width: 760, height: 460)
         Self.applyStageChrome(to: window)
@@ -589,6 +590,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hostingController.safeAreaRegions = []
         window.contentViewController = hostingController
         window.center()
+        window.alignTrafficLights()
 
         mainWindow = window
         window.makeKeyAndOrderFront(nil)
@@ -692,5 +694,78 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         window.titleVisibility = .hidden
         window.backgroundColor = Stage.windowColor
         window.isMovableByWindowBackground = true
+    }
+}
+
+/// Custom NSWindow that aligns the macOS traffic light buttons cleanly on the vertical centerline
+/// of Ferry's custom header bar (while keeping them strictly within the native titlebar bounds).
+@MainActor
+private final class AlignedChromeWindow: NSWindow {
+    var headerHeight: CGFloat = 44
+    private let leadingOffset: CGFloat = 14
+    private var chromeObservers: [NSObjectProtocol] = []
+
+    override init(
+        contentRect: NSRect,
+        styleMask style: NSWindow.StyleMask,
+        backing backingStoreType: NSWindow.BackingStoreType,
+        defer flag: Bool
+    ) {
+        super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
+        installChromeObservers()
+    }
+
+    private func installChromeObservers() {
+        let names: [Notification.Name] = [
+            NSWindow.didResizeNotification,
+            NSWindow.didBecomeKeyNotification,
+            NSWindow.didResignKeyNotification,
+            NSWindow.didExitFullScreenNotification
+        ]
+        chromeObservers = names.map { name in
+            NotificationCenter.default.addObserver(forName: name, object: self, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.alignTrafficLights()
+                }
+            }
+        }
+    }
+
+    override func layoutIfNeeded() {
+        super.layoutIfNeeded()
+        alignTrafficLights()
+    }
+
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        super.setFrame(frameRect, display: flag)
+        alignTrafficLights()
+    }
+
+    func alignTrafficLights() {
+        let buttons: [NSButton] = [
+            standardWindowButton(.closeButton),
+            standardWindowButton(.miniaturizeButton),
+            standardWindowButton(.zoomButton)
+        ].compactMap { $0 }
+
+        guard buttons.count == 3, let titlebar = buttons[0].superview else { return }
+
+        let titlebarHeight = titlebar.bounds.height
+        guard titlebarHeight > 0 else { return }
+
+        // Preserve native horizontal spacing between buttons while aligning the left edge cleanly.
+        let nativeStep = max(buttons[1].frame.origin.x - buttons[0].frame.origin.x, 20)
+        let targetCenterFromTop = headerHeight * 0.5
+
+        for (index, button) in buttons.enumerated() {
+            var frame = button.frame
+            let desiredY = titlebarHeight - targetCenterFromTop - (frame.height * 0.5)
+            // Keep strictly inside NSTitlebarView bounds so buttons are never clipped on any macOS version.
+            frame.origin.y = max(2, min(desiredY, titlebarHeight - frame.height - 2)).rounded()
+            frame.origin.x = (leadingOffset + CGFloat(index) * nativeStep).rounded()
+            if button.frame != frame {
+                button.setFrameOrigin(frame.origin)
+            }
+        }
     }
 }

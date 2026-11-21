@@ -15,7 +15,7 @@ public struct MenuBarPopoverView: View {
     /// Reports the panel's natural height so the host window can follow the content.
     public var onHeightChange: (CGFloat) -> Void = { _ in }
 
-    static let width: CGFloat = 340
+    static let width: CGFloat = 368
     /// The translation area fits its text between these heights, then scrolls.
     private static let outputMinHeight: CGFloat = 64
     private static let outputMaxHeight: CGFloat = 320
@@ -89,7 +89,7 @@ public struct MenuBarPopoverView: View {
 
             Spacer(minLength: 4)
 
-            headerButton("text.viewfinder", help: ocrHelp, action: onScreenshotOCR)
+            headerButton("camera.viewfinder", help: ocrHelp, action: onScreenshotOCR)
             headerButton("pip", help: l10n.miniWidgetTooltip, action: onToggleDesktopWidget)
             headerButton("arrow.up.left.and.arrow.down.right", help: l10n.openInMainWindowTooltip, action: onOpenMainWindow)
             headerButton("gearshape", help: l10n.settings, action: onOpenSettings)
@@ -175,17 +175,9 @@ public struct MenuBarPopoverView: View {
     // MARK: - Controls
 
     private var controlRow: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             ModePickerControl(selection: $session.mode, compact: true)
             LanguagePickerControl(selection: $session.targetLanguage, compact: true)
-
-            if !session.mode.preservesSourceLanguage(for: session.targetLanguage)
-                && (hasResult || session.isTranslating) {
-                Text("→ \(session.resolvedLanguage.shortName(in: lang))")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Stage.textSecondary)
-                    .lineLimit(1)
-            }
 
             Spacer(minLength: 4)
 

@@ -58,6 +58,14 @@ public enum TranslationMode: String, CaseIterable, Codable, Identifiable, Sendab
         }
     }
 
+    /// Concise single-line label for the horizontal mode strip in the Main Window.
+    public func pillTitle(in language: ResolvedAppLanguage) -> String {
+        switch language {
+        case .zhHans: return displayName(in: .zhHans)
+        case .en: return shortName(in: .en)
+        }
+    }
+
     public func subtitle(in language: ResolvedAppLanguage) -> String {
         switch self {
         case .translate:

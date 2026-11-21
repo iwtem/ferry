@@ -118,11 +118,18 @@ public struct MainWindowView: View {
 
     // MARK: - Header
 
+    static let headerHeight: CGFloat = 44
+
     private var header: some View {
-        HStack(spacing: 10) {
-            FerryLogo(height: 17, color: FerryTheme.accentText)
+        HStack(spacing: 8) {
+            Rectangle()
+                .fill(Stage.hairline)
+                .frame(width: 1, height: 14)
+                .padding(.trailing, 4)
+
+            FerryLogo(height: 15.5, color: FerryTheme.accentText)
             Text(l10n.brandName)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .font(.system(size: 14.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
 
             Spacer()
@@ -131,7 +138,7 @@ public struct MainWindowView: View {
                 .padding(.trailing, 4)
 
             GlassIconButton(
-                systemName: "text.viewfinder",
+                systemName: "camera.viewfinder",
                 help: settingsStore.settings.screenshotOCREnabled
                     ? l10n.screenshotOCRShortcutTooltip(settingsStore.settings.screenshotOCRShortcut.displayString)
                     : l10n.screenshotOCRTooltip,
@@ -145,29 +152,32 @@ public struct MainWindowView: View {
             GlassIconButton(systemName: "pip", help: l10n.miniWidgetTooltip, action: onToggleDesktopWidget)
             GlassIconButton(systemName: "gearshape", help: l10n.settingsShortcutHelp, action: onOpenSettings)
         }
-        .padding(.leading, 80) // room for the traffic-light buttons
+        .padding(.leading, 84) // aligned next to the centered macOS traffic-light buttons
         .padding(.trailing, 14)
-        .frame(height: 50)
+        .frame(height: Self.headerHeight)
         .background(WindowDragArea())
     }
 
     // MARK: - Mode bar & Language bar
 
     private var modeBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             ModePillStrip(selection: $session.mode)
+                .layoutPriority(1)
             Spacer(minLength: 8)
             Text(session.mode.subtitle(in: lang))
                 .font(.system(size: 11.5))
                 .foregroundStyle(Stage.textTertiary)
                 .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(-1)
         }
     }
 
     private var languageBar: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                Image(systemName: "text.viewfinder")
+                Image(systemName: "character.bubble")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                 Text(sourceLanguageLabel)
@@ -348,6 +358,7 @@ public struct MainWindowView: View {
                 .padding(.horizontal, 14)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .animation(FerryMotion.animation(FerryMotion.quick), value: hasResult)
                 .animation(FerryMotion.animation(FerryMotion.quick), value: session.errorMessage)
             }

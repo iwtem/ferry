@@ -192,7 +192,7 @@ public final class MenuBarPanelController {
             hostingView = view
         }
 
-        let size = hostingView?.fittingSize ?? NSSize(width: 340, height: 440)
+        let size = hostingView?.fittingSize ?? NSSize(width: 368, height: 440)
         panel.setFrame(frame(for: size, below: button), display: true)
         panel.makeKeyAndOrderFront(nil)
         panel.invalidateShadow()
@@ -215,7 +215,7 @@ public final class MenuBarPanelController {
 
     private func makePanel() -> KeyableFloatingPanel {
         let newPanel = KeyableFloatingPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 340, height: 440),
+            contentRect: NSRect(x: 0, y: 0, width: 368, height: 440),
             styleMask: [.borderless, .fullSizeContentView],
             backing: .buffered,
             defer: false

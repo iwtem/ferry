@@ -266,11 +266,12 @@ public struct ModePickerControl: View {
                 Text(compact ? selection.shortName(in: appLanguage) : selection.displayName(in: appLanguage))
                     .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(selection.isWritingMode ? FerryTheme.accentText : .primary)
+                    .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8.5, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, compact ? 7 : 8)
             .padding(.vertical, 4)
             .background(
                 selection.isWritingMode ? FerryTheme.accent.opacity(0.14) : Color.primary.opacity(0.06),
@@ -299,7 +300,7 @@ public struct ModePillStrip: View {
     }
 
     public var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             ForEach(TranslationMode.allCases) { mode in
                 let isSelected = selection == mode
                 Button {
@@ -309,25 +310,29 @@ public struct ModePillStrip: View {
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: mode.symbolName)
-                            .font(.system(size: 10.5, weight: .semibold))
-                        Text(mode.displayName(in: appLanguage))
-                            .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))
+                            .font(.system(size: 11, weight: .medium))
+                            .frame(minWidth: 14)
+                        Text(mode.pillTitle(in: appLanguage))
+                            .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                     .foregroundStyle(isSelected ? FerryTheme.accentText : Stage.textSecondary)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .frame(height: 26)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
                             .fill(isSelected ? FerryTheme.accent.opacity(0.15) : Color.clear)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
                             .strokeBorder(isSelected ? FerryTheme.accent.opacity(0.35) : Color.clear, lineWidth: 1)
                     )
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(mode.subtitle(in: appLanguage))
+                .fixedSize(horizontal: true, vertical: false)
+                .help("\(mode.displayName(in: appLanguage)) · \(mode.subtitle(in: appLanguage))")
             }
         }
         .padding(3)
@@ -336,6 +341,7 @@ public struct ModePillStrip: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(Stage.controlStroke, lineWidth: 1)
         )
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 
