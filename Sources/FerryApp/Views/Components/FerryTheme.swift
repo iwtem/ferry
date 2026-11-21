@@ -52,16 +52,17 @@ struct FerryLogo: View {
 
 /// Borderless icon button used in toolbars and headers.
 struct IconButton: View {
-    let systemName: String
+    let icon: LucideIcon.Name
     let help: String
     var isOn: Bool = false
+    var size: CGFloat = 26
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
+            LucideIcon(icon, size: max(13, (size * 0.58).rounded()))
         }
-        .buttonStyle(HoverIconButtonStyle(isOn: isOn))
+        .buttonStyle(HoverIconButtonStyle(isOn: isOn, size: size))
         .help(help)
         .accessibilityLabel(help)
     }

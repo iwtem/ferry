@@ -138,19 +138,19 @@ public struct MainWindowView: View {
                 .padding(.trailing, 4)
 
             GlassIconButton(
-                systemName: "camera.viewfinder",
+                icon: .scanText,
                 help: settingsStore.settings.screenshotOCREnabled
                     ? l10n.screenshotOCRShortcutTooltip(settingsStore.settings.screenshotOCRShortcut.displayString)
                     : l10n.screenshotOCRTooltip,
                 action: onScreenshotOCR
             )
-            GlassIconButton(systemName: "clock.arrow.circlepath", help: l10n.historyTooltip, isOn: uiState.showHistory) {
+            GlassIconButton(icon: .history, help: l10n.historyTooltip, isOn: uiState.showHistory) {
                 withAnimation(FerryMotion.animation(FerryMotion.spring)) {
                     uiState.showHistory.toggle()
                 }
             }
-            GlassIconButton(systemName: "pip", help: l10n.miniWidgetTooltip, action: onToggleDesktopWidget)
-            GlassIconButton(systemName: "gearshape", help: l10n.settingsShortcutHelp, action: onOpenSettings)
+            GlassIconButton(icon: .pictureInPicture2, help: l10n.miniWidgetTooltip, action: onToggleDesktopWidget)
+            GlassIconButton(icon: .settings, help: l10n.settingsShortcutHelp, action: onOpenSettings)
         }
         .padding(.leading, 84) // aligned next to the centered macOS traffic-light buttons
         .padding(.trailing, 14)
@@ -177,8 +177,7 @@ public struct MainWindowView: View {
     private var languageBar: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                Image(systemName: "character.bubble")
-                    .font(.system(size: 11, weight: .medium))
+                LucideIcon(.messageSquareText, size: 13)
                     .foregroundStyle(.secondary)
                 Text(sourceLanguageLabel)
                     .font(.system(size: 12.5, weight: .medium))
@@ -196,7 +195,7 @@ public struct MainWindowView: View {
                     session.swapWithTranslation()
                 }
             } label: {
-                Image(systemName: "arrow.left.arrow.right")
+                LucideIcon(.arrowLeftRight, size: 14.5)
                     .rotationEffect(.degrees(uiState.swapRotation))
             }
             .buttonStyle(GlassIconStyle(size: 30))
@@ -261,7 +260,7 @@ public struct MainWindowView: View {
                     help: l10n.speakSource
                 )
 
-                IconButton(systemName: "doc.on.clipboard", help: l10n.pasteAndTranslateTooltip) {
+                IconButton(icon: .clipboardPaste, help: l10n.pasteAndTranslateTooltip) {
                     if let clip = NSPasteboard.general.string(forType: .string), !clip.isEmpty {
                         session.translate(text: clip)
                     } else if let image = ScreenCaptureService.imageFromPasteboard() {
@@ -269,7 +268,7 @@ public struct MainWindowView: View {
                     }
                 }
                 if !session.sourceText.isEmpty {
-                    IconButton(systemName: "xmark.circle", help: l10n.clear) {
+                    IconButton(icon: .circleX, help: l10n.clear) {
                         session.clear()
                     }
                 }
@@ -279,7 +278,10 @@ public struct MainWindowView: View {
                         Button(role: .cancel) {
                             session.cancel()
                         } label: {
-                            Label(l10n.stop, systemImage: "stop.fill")
+                            HStack(spacing: 6) {
+                                LucideIcon(.square, size: 10.5, filled: true)
+                                Text(l10n.stop)
+                            }
                         }
                         .buttonStyle(GlassButtonStyle(height: 30))
                     } else {
@@ -288,8 +290,7 @@ public struct MainWindowView: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Text(l10n.runActionLabel(for: session.mode))
-                                Image(systemName: "arrow.right")
-                                    .font(.system(size: 11, weight: .bold))
+                                LucideIcon(.arrowRight, size: 13, strokeWidth: 2.2)
                             }
                             .padding(.horizontal, 4)
                         }
@@ -377,15 +378,17 @@ public struct MainWindowView: View {
                         .foregroundStyle(.tertiary)
                 }
                 Spacer()
-                SpeakButton(
-                    speechService: speechService,
-                    id: "main-result",
-                    text: session.translatedText,
-                    languageHint: session.outputLanguageHint,
-                    help: l10n.speakTranslation
-                )
-                CopyResultButton(copied: session.copiedRecently, disabled: !hasResult) {
-                    session.copyTranslation()
+                HStack(spacing: 4) {
+                    SpeakButton(
+                        speechService: speechService,
+                        id: "main-result",
+                        text: session.translatedText,
+                        languageHint: session.outputLanguageHint,
+                        help: l10n.speakTranslation
+                    )
+                    CopyResultButton(copied: session.copiedRecently, disabled: !hasResult) {
+                        session.copyTranslation()
+                    }
                 }
             }
             .padding(.horizontal, 12)
@@ -455,8 +458,7 @@ public struct MainWindowView: View {
             if settingsStore.recentRecords.isEmpty {
                 VStack(spacing: 8) {
                     Spacer()
-                    Image(systemName: "text.bubble")
-                        .font(.system(size: 24))
+                    LucideIcon(.messageSquareText, size: 24, strokeWidth: 1.6)
                         .foregroundStyle(.tertiary)
                     Text(l10n.historyEmpty)
                         .font(.system(size: 12))
@@ -548,8 +550,7 @@ struct ModelMenu: View {
                     .font(.system(size: compact ? 11 : 12, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8.5, weight: .bold))
+                LucideIcon(.chevronDown, size: 10.5, strokeWidth: 2.1)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, compact ? 9 : 11)

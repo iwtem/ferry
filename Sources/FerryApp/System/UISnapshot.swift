@@ -79,6 +79,21 @@ enum UISnapshot {
                 size: nil, appearance: appearance,
                 to: outputDir.appendingPathComponent("popover-empty-\(appearanceName).png")
             )
+            let popupState = QuickPopupUIState()
+            popupState.sourceAppName = "Safari"
+            render(
+                QuickPopupView(session: session(), settingsStore: store, speechService: speechService, uiState: popupState,
+                               onTogglePin: { _ in }, onOpenInMainWindow: {}, onOpenSettings: {},
+                               onReplaceInSourceApp: {}, onClose: {}),
+                size: nil, appearance: appearance,
+                to: outputDir.appendingPathComponent("popup-\(appearanceName).png")
+            )
+            render(
+                DesktopMiniWidgetView(session: session(), settingsStore: store, speechService: speechService,
+                                      onToggleAlwaysOnTop: { _ in }, onOpenInMainWindow: {}, onOpenSettings: {}, onClose: {}),
+                size: nil, appearance: appearance,
+                to: outputDir.appendingPathComponent("widget-\(appearanceName).png")
+            )
             for pane in SettingsPane.allCases {
                 let state = SettingsUIState(initialProvider: .deepseek)
                 state.selectedPane = pane

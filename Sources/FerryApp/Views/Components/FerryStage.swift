@@ -398,7 +398,7 @@ private struct GlassButtonBody: View {
 
 /// Square glass icon button.
 struct GlassIconButton: View {
-    let systemName: String
+    let icon: LucideIcon.Name
     let help: String
     var isOn: Bool = false
     var size: CGFloat = 28
@@ -406,8 +406,7 @@ struct GlassIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: size * 0.43, weight: .medium))
+            LucideIcon(icon, size: (size * 0.52).rounded())
         }
         .buttonStyle(GlassIconStyle(isOn: isOn, size: size))
         .help(help)
@@ -520,10 +519,8 @@ struct GlassField: View {
                 Button {
                     revealed.toggle()
                 } label: {
-                    Image(systemName: revealed ? "eye.slash" : "eye")
-                        .font(.system(size: 11))
+                    LucideIcon(revealed ? .eyeOff : .eye, size: 13)
                         .foregroundStyle(Stage.textTertiary)
-                        .contentTransition(.symbolEffect(.replace))
                         .frame(width: 20, height: 20)
                         .contentShape(Rectangle())
                 }
@@ -565,8 +562,7 @@ struct GlassMenuLabel: View {
                 .font(monospaced ? .system(size: 12, design: .monospaced) : .system(size: 12.5, weight: .medium))
                 .lineLimit(1)
                 .truncationMode(.middle)
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 8.5, weight: .bold))
+            LucideIcon(.chevronsUpDown, size: 11, strokeWidth: 2.1)
                 .foregroundStyle(Stage.textTertiary)
         }
         .foregroundStyle(.primary)

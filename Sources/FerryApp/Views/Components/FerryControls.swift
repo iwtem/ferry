@@ -90,28 +90,32 @@ private struct FerryButtonBody: View {
 /// A round icon button with hover fill and press feedback.
 struct HoverIconButtonStyle: ButtonStyle {
     var isOn: Bool = false
+    var activeColor: Color? = nil
     var size: CGFloat = 28
 
     func makeBody(configuration: Configuration) -> some View {
-        HoverIconBody(configuration: configuration, isOn: isOn, size: size)
+        HoverIconBody(configuration: configuration, isOn: isOn, activeColor: activeColor, size: size)
     }
 }
 
 private struct HoverIconBody: View {
     let configuration: ButtonStyle.Configuration
     let isOn: Bool
+    let activeColor: Color?
     let size: CGFloat
     @Environment(\.isEnabled) private var isEnabled
     @ViewState private var hovering = false
 
     var body: some View {
+        let onForeground = activeColor ?? FerryTheme.accentText
+        let onBackground = (activeColor ?? FerryTheme.accent).opacity(0.14)
         configuration.label
             .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(isOn ? FerryTheme.accentText : (hovering ? Color.primary : Color.secondary))
+            .foregroundStyle(isOn ? onForeground : (hovering ? Color.primary : Color.secondary))
             .frame(width: size, height: size - 2)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(isOn ? FerryTheme.accent.opacity(0.14) : Color.primary.opacity(hovering ? 0.08 : 0))
+                    .fill(isOn ? onBackground : Color.primary.opacity(hovering ? 0.08 : 0))
             )
             .scaleEffect(configuration.isPressed ? 0.9 : 1)
             .opacity(isEnabled ? 1 : 0.4)
@@ -166,7 +170,7 @@ struct SpinningRefreshIcon: View {
     @ViewState private var angle: Double = 0
 
     var body: some View {
-        Image(systemName: "arrow.clockwise")
+        LucideIcon(.rotateCw, size: 13.5)
             .rotationEffect(.degrees(angle))
             .onChange(of: active, initial: true) { _, isActive in
                 if isActive {

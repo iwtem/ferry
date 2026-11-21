@@ -16,9 +16,9 @@ public struct MenuBarPopoverView: View {
     public var onHeightChange: (CGFloat) -> Void = { _ in }
 
     static let width: CGFloat = 368
-    /// The translation area fits its text between these heights, then scrolls.
-    private static let outputMinHeight: CGFloat = 64
-    private static let outputMaxHeight: CGFloat = 320
+    /// The translation text area fits its content between these heights, then scrolls.
+    private static let outputTextMinHeight: CGFloat = 42
+    private static let outputTextMaxHeight: CGFloat = 290
     @ViewState private var outputContentHeight: CGFloat = 0
 
     private var hasSource: Bool {
@@ -27,6 +27,10 @@ public struct MenuBarPopoverView: View {
 
     private var hasResult: Bool {
         !session.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var showOutputActions: Bool {
+        session.errorMessage == nil && (hasResult || settingsStore.hasActiveAPIKey)
     }
 
     private var lang: ResolvedAppLanguage { settingsStore.resolvedLanguage }
@@ -41,6 +45,9 @@ public struct MenuBarPopoverView: View {
             inputCard
             controlRow
             outputCard
+            if speechService.lastErrorMessage != nil {
+                SpeechErrorBanner(speechService: speechService)
+            }
         }
         .padding(12)
         .frame(width: Self.width)
@@ -89,17 +96,17 @@ public struct MenuBarPopoverView: View {
 
             Spacer(minLength: 4)
 
-            headerButton("camera.viewfinder", help: ocrHelp, action: onScreenshotOCR)
-            headerButton("pip", help: l10n.miniWidgetTooltip, action: onToggleDesktopWidget)
-            headerButton("arrow.up.left.and.arrow.down.right", help: l10n.openInMainWindowTooltip, action: onOpenMainWindow)
-            headerButton("gearshape", help: l10n.settings, action: onOpenSettings)
-            headerButton("power", help: l10n.quitFerry, action: onQuit)
+            headerButton(.scanText, help: ocrHelp, action: onScreenshotOCR)
+            headerButton(.pictureInPicture2, help: l10n.miniWidgetTooltip, action: onToggleDesktopWidget)
+            headerButton(.maximize2, help: l10n.openInMainWindowTooltip, action: onOpenMainWindow)
+            headerButton(.settings, help: l10n.settings, action: onOpenSettings)
+            headerButton(.power, help: l10n.quitFerry, action: onQuit)
         }
     }
 
-    private func headerButton(_ systemName: String, help: String, action: @escaping () -> Void) -> some View {
+    private func headerButton(_ icon: LucideIcon.Name, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: systemName)
+            LucideIcon(icon, size: 14.5)
         }
         .buttonStyle(GhostIconStyle(size: 26))
         .help(help)
@@ -128,10 +135,11 @@ public struct MenuBarPopoverView: View {
                     Button {
                         session.clear()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        LucideIcon(.circleX, size: 14)
                     }
                     .buttonStyle(GhostIconStyle(size: 24))
                     .help(l10n.clear)
+                    .accessibilityLabel(l10n.clear)
                 } else {
                     Text(l10n.shiftReturnHint)
                         .font(.system(size: 10.5))
@@ -155,7 +163,10 @@ public struct MenuBarPopoverView: View {
                     Button(role: .cancel) {
                         session.cancel()
                     } label: {
-                        Label(l10n.stop, systemImage: "stop.fill")
+                        HStack(spacing: 5) {
+                            LucideIcon(.square, size: 10, filled: true)
+                            Text(l10n.stop)
+                        }
                     }
                     .buttonStyle(GlassButtonStyle(height: 24))
                 } else {
@@ -185,23 +196,11 @@ public struct MenuBarPopoverView: View {
                 Button {
                     session.swapWithTranslation()
                 } label: {
-                    Image(systemName: "arrow.up.arrow.down")
+                    LucideIcon(.arrowUpDown, size: 14)
                 }
                 .buttonStyle(GhostIconStyle(size: 24))
                 .help(l10n.swapPopoverTooltip)
-            }
-
-            SpeakButton(
-                speechService: speechService,
-                id: "popover-result",
-                text: session.translatedText,
-                languageHint: session.outputLanguageHint,
-                help: l10n.speakTranslation,
-                size: 24
-            )
-
-            CopyResultButton(copied: session.copiedRecently, disabled: !hasResult) {
-                session.copyTranslation()
+                .accessibilityLabel(l10n.swapPopoverTooltip)
             }
         }
     }
@@ -209,59 +208,82 @@ public struct MenuBarPopoverView: View {
     // MARK: - Output
 
     private var outputCard: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 6) {
-                if let error = session.errorMessage {
-                    ErrorBannerView(
-                        message: error,
-                        showSettingsAction: error.contains("API Key") || error.contains("401"),
-                        onOpenSettings: onOpenSettings
-                    )
-                } else if !hasResult && session.isTranslating {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        Text(l10n.translatingEllipsis)
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(Stage.textSecondary)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let error = session.errorMessage {
+                        ErrorBannerView(
+                            message: error,
+                            showSettingsAction: error.contains("API Key") || error.contains("401"),
+                            onOpenSettings: onOpenSettings
+                        )
+                    } else if !hasResult && session.isTranslating {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text(l10n.translatingEllipsis)
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(Stage.textSecondary)
+                        }
+                        .padding(.vertical, 4)
+                    } else if hasResult {
+                        Text(session.translatedText)
+                            .font(.system(size: 14))
+                            .lineSpacing(4)
+                            .foregroundStyle(.primary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if !settingsStore.hasActiveAPIKey {
+                        VStack(spacing: 10) {
+                            HueOrb(systemName: "key.fill", hue: .amber, size: 40)
+                            Text(l10n.missingAPIKeyTitle)
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            Button(l10n.openSettings, action: onOpenSettings)
+                                .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: 26))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                    } else {
+                        Text(l10n.translationPlaceholder)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Stage.textTertiary)
                     }
-                    .padding(.vertical, 4)
-                } else if hasResult {
-                    Text(session.translatedText)
-                        .font(.system(size: 14))
-                        .lineSpacing(4)
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else if !settingsStore.hasActiveAPIKey {
-                    VStack(spacing: 10) {
-                        HueOrb(systemName: "key.fill", hue: .amber, size: 40)
-                        Text(l10n.missingAPIKeyTitle)
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        Button(l10n.openSettings, action: onOpenSettings)
-                            .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: 26))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                } else {
-                    Text(l10n.translationPlaceholder)
-                        .font(.system(size: 14))
-                        .foregroundStyle(Stage.textTertiary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, showOutputActions ? 4 : 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    outputContentHeight = height
                 }
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                outputContentHeight = height
+            .scrollDisabled(outputContentHeight <= Self.outputTextMaxHeight)
+            .frame(maxWidth: .infinity)
+            .frame(height: min(max(outputContentHeight, Self.outputTextMinHeight), Self.outputTextMaxHeight))
+
+            if showOutputActions {
+                HStack(spacing: 2) {
+                    Spacer()
+                    SpeakButton(
+                        speechService: speechService,
+                        id: "popover-result",
+                        text: session.translatedText,
+                        languageHint: session.outputLanguageHint,
+                        help: l10n.speakTranslation,
+                        size: 24
+                    )
+                    CopyResultButton(
+                        copied: session.copiedRecently,
+                        disabled: !hasResult,
+                        size: 24
+                    ) {
+                        session.copyTranslation()
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.bottom, 6)
             }
         }
-        .scrollDisabled(outputContentHeight <= Self.outputMaxHeight)
-        .frame(maxWidth: .infinity)
-        .frame(height: min(max(outputContentHeight, Self.outputMinHeight), Self.outputMaxHeight))
         .glassSurface(cornerRadius: 12, fill: FerryTheme.accent.opacity(0.07))
-        .overlay(alignment: .bottom) {
-            SpeechErrorBanner(speechService: speechService)
-                .padding(8)
-        }
     }
 }
 

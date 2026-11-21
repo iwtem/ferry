@@ -212,12 +212,11 @@ public struct LanguagePickerControl: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "globe")
-                    .font(.system(size: 11, weight: .medium))
+                LucideIcon(.globe, size: 12.5)
+                    .foregroundStyle(.secondary)
                 Text(compact ? selection.shortName(in: appLanguage) : selection.displayName(in: appLanguage))
                     .font(.system(size: 11.5, weight: .medium))
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                LucideIcon(.chevronDown, size: 10.5, strokeWidth: 2.1)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 8)
@@ -260,15 +259,13 @@ public struct ModePickerControl: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: selection.symbolName)
-                    .font(.system(size: 10.5, weight: .semibold))
+                LucideIcon(selection.lucideIcon, size: 12.5)
                     .foregroundStyle(selection.isWritingMode ? FerryTheme.accentText : .secondary)
                 Text(compact ? selection.shortName(in: appLanguage) : selection.displayName(in: appLanguage))
                     .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(selection.isWritingMode ? FerryTheme.accentText : .primary)
                     .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8.5, weight: .semibold))
+                LucideIcon(.chevronDown, size: 10.5, strokeWidth: 2.1)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, compact ? 7 : 8)
@@ -309,9 +306,7 @@ public struct ModePillStrip: View {
                     }
                 } label: {
                     HStack(spacing: 5) {
-                        Image(systemName: mode.symbolName)
-                            .font(.system(size: 11, weight: .medium))
-                            .frame(minWidth: 14)
+                        LucideIcon(mode.lucideIcon, size: 13)
                         Text(mode.pillTitle(in: appLanguage))
                             .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
                             .lineLimit(1)
@@ -348,31 +343,35 @@ public struct ModePillStrip: View {
 public struct CopyResultButton: View {
     public let copied: Bool
     public let disabled: Bool
+    public var size: CGFloat = 26
     public let action: () -> Void
     @Environment(\.appLanguage) private var appLanguage
 
-    public init(copied: Bool, disabled: Bool, action: @escaping () -> Void) {
+    public init(copied: Bool, disabled: Bool, size: CGFloat = 26, action: @escaping () -> Void) {
         self.copied = copied
         self.disabled = disabled
+        self.size = size
         self.action = action
     }
 
     public var body: some View {
         let l10n = L10n(appLanguage)
+        let iconSize = max(13, (size * 0.58).rounded())
         Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 11, weight: .medium))
-                    .contentTransition(.symbolEffect(.replace))
-                Text(copied ? l10n.copied : l10n.copy)
-                    .font(.system(size: 12, weight: .medium))
-                    .contentTransition(.opacity)
+            Group {
+                if copied {
+                    LucideIcon(.check, size: iconSize, strokeWidth: 2.2)
+                        .transition(.scale(scale: 0.75).combined(with: .opacity))
+                } else {
+                    LucideIcon(.copy, size: iconSize)
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
+                }
             }
-            .foregroundStyle(copied ? Color.green : Color.primary)
         }
-        .buttonStyle(FerryButtonStyle(kind: .secondary, compact: true))
-        .fixedSize()
+        .buttonStyle(HoverIconButtonStyle(isOn: copied, activeColor: Stage.ok, size: size))
         .disabled(disabled)
+        .help(copied ? l10n.copied : l10n.copy)
+        .accessibilityLabel(copied ? l10n.copied : l10n.copy)
         .animation(FerryMotion.animation(FerryMotion.spring), value: copied)
     }
 }
@@ -462,17 +461,15 @@ public struct SpeakButton: View {
     public var body: some View {
         let l10n = L10n(appLanguage)
         let idleHelp = help ?? l10n.speak
+        let iconSize = max(13, (size * 0.58).rounded())
         Button {
             speechService.toggleSpeak(text: text, id: id, languageHint: languageHint)
         } label: {
             if isLoading {
                 ProgressView()
                     .controlSize(.mini)
-            } else if isSpeaking {
-                Image(systemName: "speaker.wave.2.fill")
-                    .symbolEffect(.variableColor.iterative)
             } else {
-                Image(systemName: "speaker.wave.2")
+                LucideIcon(.volume2, size: iconSize, filled: isSpeaking)
             }
         }
         .buttonStyle(HoverIconButtonStyle(isOn: isSpeaking || isLoading, size: size))
@@ -492,8 +489,7 @@ public struct SpeechErrorBanner: View {
     public var body: some View {
         if let message = speechService.lastErrorMessage {
             HStack(spacing: 6) {
-                Image(systemName: "speaker.slash.fill")
-                    .font(.system(size: 11))
+                LucideIcon(.volumeX, size: 13)
                     .foregroundStyle(.orange)
                 Text(message)
                     .font(.system(size: 11.5))
@@ -503,8 +499,7 @@ public struct SpeechErrorBanner: View {
                 Button {
                     speechService.clearError()
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9.5, weight: .semibold))
+                    LucideIcon(.x, size: 11, strokeWidth: 2.2)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -575,8 +570,7 @@ public struct UpdateBannerView: View {
                 Button {
                     updateService.dismissBanner()
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9.5, weight: .semibold))
+                    LucideIcon(.x, size: 11, strokeWidth: 2.2)
                         .foregroundStyle(.secondary)
                         .padding(3)
                 }

@@ -260,7 +260,8 @@ struct FerryCoreTests {
         #expect(ProviderKind.custom.shortName(in: .en) == "Custom")
 
         #expect(TargetLanguage.auto.displayName(in: .zhHans) == "自动 (中↔英)")
-        #expect(TargetLanguage.auto.displayName(in: .en) == "Auto (ZH↔EN)")
+        #expect(TargetLanguage.auto.displayName(in: .en) == "Auto (Zh↔En)")
+        #expect(TargetLanguage.auto.shortName(in: .en) == "Zh↔En")
         #expect(TargetLanguage.zhCN.shortName(in: .en) == "Chinese")
 
         #expect(EnglishAccent.us.displayName(in: .en) == "American (US)")

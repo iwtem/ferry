@@ -81,20 +81,19 @@ public struct QuickPopupView: View {
                     uiState.isPinned.toggle()
                     onTogglePin(uiState.isPinned)
                 } label: {
-                    Image(systemName: uiState.isPinned ? "pin.fill" : "pin")
-                        .contentTransition(.symbolEffect(.replace))
+                    LucideIcon(.pin, size: 13.5, filled: uiState.isPinned)
                 }
                 .buttonStyle(HoverIconButtonStyle(isOn: uiState.isPinned, size: 24))
                 .help(uiState.isPinned ? l10n.unpinTooltip : l10n.pinPopupTooltip)
 
                 Button(action: onOpenInMainWindow) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    LucideIcon(.maximize2, size: 13.5)
                 }
                 .buttonStyle(HoverIconButtonStyle(size: 24))
                 .help(l10n.openInMainWindowTooltip)
 
                 Button(action: onClose) {
-                    Image(systemName: "xmark")
+                    LucideIcon(.x, size: 14)
                 }
                 .buttonStyle(HoverIconButtonStyle(size: 24))
                 .help(l10n.closeEscTooltip)
@@ -118,8 +117,7 @@ public struct QuickPopupView: View {
                                 .lineLimit(uiState.showFullSource ? 8 : 2)
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                            Image(systemName: uiState.showFullSource ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 9))
+                            LucideIcon(uiState.showFullSource ? .chevronUp : .chevronDown, size: 11, strokeWidth: 2.1)
                                 .foregroundStyle(.tertiary)
                                 .padding(.top, 2)
                         }
@@ -138,6 +136,8 @@ public struct QuickPopupView: View {
                 .padding(.vertical, 5)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
+
+            let hasOutput = !session.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
             // Translation output
             if let error = session.errorMessage {
@@ -162,36 +162,62 @@ public struct QuickPopupView: View {
                 }
                 Spacer(minLength: 0)
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if session.isRecognizingOCR {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text(l10n.recognizingOCREllipsis)
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.secondary)
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if session.isRecognizingOCR {
+                                HStack(spacing: 6) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text(l10n.recognizingOCREllipsis)
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 10)
+                            } else if session.translatedText.isEmpty && session.isTranslating {
+                                HStack(spacing: 6) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text(l10n.translatingLongEllipsis)
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 10)
+                            } else {
+                                Text(session.translatedText)
+                                    .font(.system(size: 13.5))
+                                    .lineSpacing(3.5)
+                                    .foregroundStyle(.primary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .padding(.vertical, 10)
-                        } else if session.translatedText.isEmpty && session.isTranslating {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text(l10n.translatingLongEllipsis)
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.vertical, 10)
-                        } else {
-                            Text(session.translatedText)
-                                .font(.system(size: 13.5))
-                                .lineSpacing(3.5)
-                                .foregroundStyle(.primary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.top, 10)
+                        .padding(.bottom, 4)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    HStack(spacing: 2) {
+                        Spacer()
+                        SpeakButton(
+                            speechService: speechService,
+                            id: "popup-result",
+                            text: session.translatedText,
+                            languageHint: session.outputLanguageHint,
+                            help: l10n.speakTranslation,
+                            size: 24
+                        )
+                        CopyResultButton(
+                            copied: session.copiedRecently,
+                            disabled: !hasOutput,
+                            size: 24
+                        ) {
+                            session.copyTranslation()
                         }
                     }
-                    .padding(10)
+                    .padding(.horizontal, 6)
+                    .padding(.bottom, 6)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .modifier(PanelCardSurface())
@@ -200,7 +226,6 @@ public struct QuickPopupView: View {
             SpeechErrorBanner(speechService: speechService)
 
             // Bottom action bar
-            let hasOutput = !session.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             HStack(spacing: 6) {
                 Text("\(settingsStore.settings.activeProvider.shortName(in: lang)) · \(settingsStore.settings.activeProfile.effectiveModel)")
                     .font(.system(size: 10.5))
@@ -209,15 +234,6 @@ public struct QuickPopupView: View {
                     .truncationMode(.middle)
 
                 Spacer(minLength: 4)
-
-                SpeakButton(
-                    speechService: speechService,
-                    id: "popup-result",
-                    text: session.translatedText,
-                    languageHint: session.outputLanguageHint,
-                    help: l10n.speakTranslation,
-                    size: 24
-                )
 
                 if session.isTranslating {
                     Button {
@@ -232,14 +248,11 @@ public struct QuickPopupView: View {
                     Button {
                         session.translate()
                     } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(.secondary)
-                            .padding(5)
-                            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        LucideIcon(.rotateCw, size: 13.5)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(HoverIconButtonStyle(size: 24))
                     .help(l10n.retranslateTooltip)
+                    .accessibilityLabel(l10n.retranslateTooltip)
                 }
 
                 if let onReplace = onReplaceInSourceApp, uiState.sourceAppName != nil {
@@ -247,8 +260,7 @@ public struct QuickPopupView: View {
                         onReplace()
                     } label: {
                         HStack(spacing: 4) {
-                            Image(systemName: "arrow.uturn.left")
-                                .font(.system(size: 10, weight: .bold))
+                            LucideIcon(.cornerDownLeft, size: 11.5, strokeWidth: 2.2)
                             Text(l10n.replaceSelectionButton)
                         }
                     }
@@ -259,13 +271,6 @@ public struct QuickPopupView: View {
                         uiState.sourceAppName.map { l10n.replaceInAppTooltip($0) }
                             ?? l10n.replaceSelectionTooltip
                     )
-                }
-
-                CopyResultButton(
-                    copied: session.copiedRecently,
-                    disabled: !hasOutput
-                ) {
-                    session.copyTranslation()
                 }
             }
         }

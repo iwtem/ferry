@@ -241,7 +241,7 @@ public struct SettingsView: View {
                                 )
                             )
                             if customBaseURL {
-                                GlassIconButton(systemName: "arrow.uturn.backward", help: l10n.restoreDefaultURLHelp) {
+                                GlassIconButton(icon: .rotateCcw, help: l10n.restoreDefaultURLHelp) {
                                     var updated = settingsStore.profile(for: provider)
                                     updated.baseURL = provider.defaultBaseURL
                                     updated.fetchedModels = []
@@ -455,7 +455,7 @@ public struct SettingsView: View {
                                 }
                             )
                             if selectionShortcut != .defaultSelectionTranslate {
-                                GlassIconButton(systemName: "arrow.uturn.backward", help: l10n.resetDefaultSelectionShortcutHelp) {
+                                GlassIconButton(icon: .rotateCcw, help: l10n.resetDefaultSelectionShortcutHelp) {
                                     settingsStore.settings.selectionShortcut = .defaultSelectionTranslate
                                 }
                             }
@@ -500,7 +500,7 @@ public struct SettingsView: View {
                                 }
                             )
                             if shortcut != .defaultScreenshotOCR {
-                                GlassIconButton(systemName: "arrow.uturn.backward", help: l10n.resetDefaultShortcutHelp) {
+                                GlassIconButton(icon: .rotateCcw, help: l10n.resetDefaultShortcutHelp) {
                                     settingsStore.settings.screenshotOCRShortcut = .defaultScreenshotOCR
                                 }
                             }
@@ -514,8 +514,7 @@ public struct SettingsView: View {
                             onTriggerScreenshotOCR()
                         } label: {
                             HStack(spacing: 6) {
-                                Image(systemName: "text.viewfinder")
-                                    .font(.system(size: 11.5, weight: .semibold))
+                                LucideIcon(.scanText, size: 13.5, strokeWidth: 2.1)
                                 Text(l10n.statusScreenshotOCR)
                             }
                         }
@@ -554,7 +553,7 @@ public struct SettingsView: View {
                             text: trusted ? l10n.grantedPill : l10n.notGrantedPill,
                             color: trusted ? Stage.ok : Stage.warn
                         )
-                        GlassIconButton(systemName: "arrow.clockwise", help: l10n.recheckPermissionHelp) {
+                        GlassIconButton(icon: .rotateCw, help: l10n.recheckPermissionHelp) {
                             withAnimation(FerryMotion.animation(FerryMotion.spring)) {
                                 copyMonitor.refreshPermissionStatus()
                             }
@@ -605,7 +604,7 @@ public struct SettingsView: View {
                             text: screenGranted ? l10n.grantedPill : l10n.notGrantedPill,
                             color: screenGranted ? Stage.ok : Stage.warn
                         )
-                        GlassIconButton(systemName: "arrow.clockwise", help: l10n.recheckPermissionHelp) {
+                        GlassIconButton(icon: .rotateCw, help: l10n.recheckPermissionHelp) {
                             withAnimation(FerryMotion.animation(FerryMotion.spring)) {
                                 screenCaptureService.refreshPermissionStatus()
                             }

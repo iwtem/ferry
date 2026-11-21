@@ -38,9 +38,8 @@ public struct DesktopMiniWidgetView: View {
         VStack(spacing: 8) {
             // Draggable top bar
             HStack(spacing: 6) {
-                Image(systemName: "translate")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(FerryTheme.accent)
+                LucideIcon(.languages, size: 13.5)
+                    .foregroundStyle(FerryTheme.accentText)
                 Text(l10n.miniWidgetTitle)
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
@@ -54,30 +53,21 @@ public struct DesktopMiniWidgetView: View {
                     settingsStore.settings.desktopWidgetAlwaysOnTop = next
                     onToggleAlwaysOnTop(next)
                 } label: {
-                    Image(systemName: settingsStore.settings.desktopWidgetAlwaysOnTop ? "pin.fill" : "pin")
-                        .font(.system(size: 11))
-                        .foregroundStyle(settingsStore.settings.desktopWidgetAlwaysOnTop ? FerryTheme.accent : Color.secondary)
-                        .padding(4)
+                    LucideIcon(.pin, size: 13, filled: settingsStore.settings.desktopWidgetAlwaysOnTop)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverIconButtonStyle(isOn: settingsStore.settings.desktopWidgetAlwaysOnTop, size: 24))
                 .help(settingsStore.settings.desktopWidgetAlwaysOnTop ? l10n.widgetPinnedTooltip : l10n.widgetUnpinnedTooltip)
 
                 Button(action: onOpenInMainWindow) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                        .padding(4)
+                    LucideIcon(.maximize2, size: 13)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverIconButtonStyle(size: 24))
                 .help(l10n.expandMainWindowTooltip)
 
                 Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(4)
+                    LucideIcon(.x, size: 13.5)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverIconButtonStyle(size: 24))
                 .help(l10n.hideMiniWidgetTooltip)
             }
 
@@ -102,6 +92,7 @@ public struct DesktopMiniWidgetView: View {
             )
 
             // Translation output
+            let hasOutput = !session.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             if let error = session.errorMessage {
                 ErrorBannerView(
                     message: error,
@@ -109,31 +100,57 @@ public struct DesktopMiniWidgetView: View {
                     onOpenSettings: onOpenSettings
                 )
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if session.translatedText.isEmpty && session.isTranslating {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .controlSize(.mini)
-                                Text(l10n.translatingEllipsis)
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if session.translatedText.isEmpty && session.isTranslating {
+                                HStack(spacing: 6) {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                    Text(l10n.translatingEllipsis)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 4)
+                            } else if session.translatedText.isEmpty {
+                                Text(l10n.widgetEmptyOutput)
                                     .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.tertiary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                Text(session.translatedText)
+                                    .font(.system(size: 13))
+                                    .lineSpacing(3)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .padding(.vertical, 4)
-                        } else if session.translatedText.isEmpty {
-                            Text(l10n.widgetEmptyOutput)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.tertiary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            Text(session.translatedText)
-                                .font(.system(size: 13))
-                                .lineSpacing(3)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.top, 8)
+                        .padding(.bottom, 2)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    HStack(spacing: 2) {
+                        Spacer()
+                        SpeakButton(
+                            speechService: speechService,
+                            id: "widget-result",
+                            text: session.translatedText,
+                            languageHint: session.outputLanguageHint,
+                            help: l10n.speakTranslation,
+                            size: 24
+                        )
+                        CopyResultButton(
+                            copied: session.copiedRecently,
+                            disabled: !hasOutput,
+                            size: 24
+                        ) {
+                            session.copyTranslation()
                         }
                     }
-                    .padding(8)
+                    .padding(.horizontal, 5)
+                    .padding(.bottom, 5)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -154,22 +171,6 @@ public struct DesktopMiniWidgetView: View {
                     .buttonStyle(.plain)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                }
-
-                SpeakButton(
-                    speechService: speechService,
-                    id: "widget-result",
-                    text: session.translatedText,
-                    languageHint: session.outputLanguageHint,
-                    help: l10n.speakTranslation,
-                    size: 24
-                )
-
-                CopyResultButton(
-                    copied: session.copiedRecently,
-                    disabled: session.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ) {
-                    session.copyTranslation()
                 }
             }
         }

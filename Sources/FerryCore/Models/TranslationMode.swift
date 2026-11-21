@@ -15,7 +15,7 @@ public enum TranslationMode: String, CaseIterable, Codable, Identifiable, Sendab
         self != .translate
     }
 
-    /// In writing modes, `.auto` preserves the input text's original language instead of flipping ZH↔EN.
+    /// In writing modes, `.auto` preserves the input text's original language instead of flipping Zh↔En.
     public func preservesSourceLanguage(for targetLanguage: TargetLanguage) -> Bool {
         isWritingMode && targetLanguage == .auto
     }

@@ -18,7 +18,7 @@ public enum TargetLanguage: String, CaseIterable, Codable, Identifiable, Sendabl
 
     public func displayName(in language: ResolvedAppLanguage) -> String {
         switch self {
-        case .auto: return FerryLocalization.text(zh: "自动 (中↔英)", en: "Auto (ZH↔EN)", in: language)
+        case .auto: return FerryLocalization.text(zh: "自动 (中↔英)", en: "Auto (Zh↔En)", in: language)
         case .zhCN: return "简体中文"
         case .en: return "English"
         case .ja: return "日本語"
@@ -35,7 +35,7 @@ public enum TargetLanguage: String, CaseIterable, Codable, Identifiable, Sendabl
 
     public func shortName(in language: ResolvedAppLanguage) -> String {
         switch self {
-        case .auto: return FerryLocalization.text(zh: "中↔英", en: "ZH↔EN", in: language)
+        case .auto: return FerryLocalization.text(zh: "中↔英", en: "Zh↔En", in: language)
         case .zhCN: return FerryLocalization.text(zh: "中文", en: "Chinese", in: language)
         case .en: return FerryLocalization.text(zh: "英文", en: "English", in: language)
         case .ja: return FerryLocalization.text(zh: "日语", en: "Japanese", in: language)
