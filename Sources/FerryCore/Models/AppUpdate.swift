@@ -306,3 +306,69 @@ public enum UpdateFeedParser {
         return String(text[range]).lowercased()
     }
 }
+
+/// Parsed event emitted by a lightweight SSE release push stream (such as `ntfy.sh` or a custom worker).
+/// Push messages are strictly wake-up hints; downloads are always fetched & verified from GitHub Releases.
+public enum UpdatePushEvent: Equatable, Sendable {
+    case connected
+    case keepalive
+    case releaseAvailable(versionHint: SemanticVersion?)
+    case ignore
+}
+
+/// Parses SSE lines from `ntfy.sh` JSON events or custom JSON/plain-text version announcements.
+public enum UpdatePushParser {
+    public static let defaultPushEndpoint = "https://ntfy.sh/ferry-releases-iwtem-v1/sse"
+
+    private struct NtfyPayload: Decodable {
+        let event: String?
+        let message: String?
+        let version: String?
+        let tag: String?
+    }
+
+    public static func parseSSELine(_ line: String) -> UpdatePushEvent {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix(":") else { return .ignore }
+        guard trimmed.hasPrefix("data:") else { return .ignore }
+
+        let payloadText = trimmed.dropFirst("data:".count).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !payloadText.isEmpty else { return .ignore }
+
+        if let data = payloadText.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode(NtfyPayload.self, from: data) {
+            if let event = decoded.event?.lowercased() {
+                switch event {
+                case "open":
+                    return .connected
+                case "keepalive":
+                    return .keepalive
+                case "message":
+                    let candidate = decoded.version ?? decoded.tag ?? decoded.message ?? ""
+                    return .releaseAvailable(versionHint: extractVersion(from: candidate))
+                default:
+                    return .ignore
+                }
+            }
+            if let explicit = decoded.version ?? decoded.tag ?? decoded.message {
+                return .releaseAvailable(versionHint: extractVersion(from: explicit))
+            }
+            return .ignore
+        }
+
+        // Plain-text fallback (e.g. `data: v0.2.1` or `data: check`)
+        return .releaseAvailable(versionHint: extractVersion(from: payloadText))
+    }
+
+    public static func extractVersion(from text: String) -> SemanticVersion? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let direct = SemanticVersion(parsing: trimmed) {
+            return direct
+        }
+        let pattern = #"(?i)v?(\d+\.\d+(?:\.\d+)?(?:-[0-9a-zA-Z\.]+)?)"#
+        guard let range = trimmed.range(of: pattern, options: .regularExpression) else {
+            return nil
+        }
+        return SemanticVersion(parsing: String(trimmed[range]))
+    }
+}

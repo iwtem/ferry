@@ -874,6 +874,27 @@ public struct SettingsView: View {
                 }
 
                 GlassRow(
+                    title: l10n.realtimeUpdatePush,
+                    caption: (autoCheck && settingsStore.settings.realtimeUpdatePushEnabled && updateService.isPushConnected)
+                        ? l10n.realtimeUpdatePushConnectedCaption
+                        : l10n.realtimeUpdatePushIdleCaption
+                ) {
+                    HStack(spacing: 8) {
+                        if autoCheck && settingsStore.settings.realtimeUpdatePushEnabled && updateService.isPushConnected {
+                            Circle()
+                                .fill(Stage.ok)
+                                .frame(width: 7, height: 7)
+                        }
+                        GlassToggle(isOn: Binding(
+                            get: { settingsStore.settings.realtimeUpdatePushEnabled },
+                            set: { settingsStore.settings.realtimeUpdatePushEnabled = $0 }
+                        ))
+                    }
+                    .disabled(!autoCheck)
+                    .opacity(autoCheck ? 1 : 0.4)
+                }
+
+                GlassRow(
                     title: l10n.autoDownloadUpdates,
                     caption: l10n.autoDownloadUpdatesCaption,
                     divider: false

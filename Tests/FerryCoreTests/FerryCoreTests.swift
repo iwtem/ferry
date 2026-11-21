@@ -226,6 +226,7 @@ struct FerryCoreTests {
         #expect(settings.selectionShortcut == .defaultSelectionTranslate)
         #expect(settings.autoCheckForUpdates == true)
         #expect(settings.autoDownloadUpdates == true)
+        #expect(settings.realtimeUpdatePushEnabled == true)
         #expect(settings.skippedUpdateVersion == nil)
     }
 
@@ -438,6 +439,23 @@ struct FerryCoreTests {
                 == "https://api.github.com/repos/iwtem/ferry/releases/latest")
         #expect(UpdateFeedParser.parseSHA256(from: "\(digestHex)  Ferry-0.2.0.zip") == digestHex)
         #expect(UpdateFeedParser.parseSHA256(from: "too-short-abc") == nil)
+    }
+
+    @Test("UpdatePushParser handles ntfy SSE control frames and release wake-up messages")
+    func testUpdatePushParser() {
+        #expect(UpdatePushParser.parseSSELine(#"data: {"id":"1","event":"open","topic":"ferry"}"#) == .connected)
+        #expect(UpdatePushParser.parseSSELine(#"data: {"id":"2","event":"keepalive","topic":"ferry"}"#) == .keepalive)
+        #expect(UpdatePushParser.parseSSELine(": comment") == .ignore)
+        #expect(UpdatePushParser.parseSSELine("event: open") == .ignore)
+
+        let ntfyMsg = #"data: {"id":"3","event":"message","topic":"ferry","message":"0.2.1"}"#
+        #expect(UpdatePushParser.parseSSELine(ntfyMsg) == .releaseAvailable(versionHint: SemanticVersion(major: 0, minor: 2, patch: 1)))
+
+        let customJSON = #"data: {"version":"v0.3.0-beta.1"}"#
+        #expect(UpdatePushParser.parseSSELine(customJSON) == .releaseAvailable(versionHint: SemanticVersion(major: 0, minor: 3, patch: 0, prerelease: "beta.1")))
+
+        #expect(UpdatePushParser.parseSSELine("data: v0.2.2") == .releaseAvailable(versionHint: SemanticVersion(major: 0, minor: 2, patch: 2)))
+        #expect(UpdatePushParser.parseSSELine("data: check-now") == .releaseAvailable(versionHint: nil))
     }
 
     @Test("Writing modes preserve source language on .auto, skip word lookup, and build dedicated prompts")

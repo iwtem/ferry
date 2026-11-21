@@ -43,6 +43,9 @@ struct L10n: Sendable {
     var statusItemTooltip: String {
         t(zh: "渡 Ferry（左键快译，右键菜单）", en: "Ferry (Left-click: Quick Translate, Right-click: Menu)")
     }
+    func statusItemUpdateTooltip(_ version: String) -> String {
+        t(zh: "渡 Ferry（新版本 v\(version) 已就绪，点击更新）", en: "Ferry (v\(version) ready to install)")
+    }
 
     // MARK: - Menus (AppKit)
 
@@ -417,7 +420,14 @@ struct L10n: Sendable {
     var skipThisVersion: String { t(zh: "跳过此版本", en: "Skip") }
     var autoCheckUpdates: String { t(zh: "自动检查更新", en: "Automatically Check for Updates") }
     var autoCheckUpdatesCaption: String {
-        t(zh: "启动时与后台定期检查 GitHub Releases 新版本", en: "Check GitHub Releases on launch and periodically")
+        t(zh: "启动时、休眠唤醒及后台 ETag 静默检查新版本", en: "Check on launch, wake, and periodically via ETag")
+    }
+    var realtimeUpdatePush: String { t(zh: "实时更新推送", en: "Real-Time Update Push") }
+    var realtimeUpdatePushConnectedCaption: String {
+        t(zh: "SSE 推送已连接 · 发布新版本后秒级自动接收", en: "Live push connected · receive new releases in seconds")
+    }
+    var realtimeUpdatePushIdleCaption: String {
+        t(zh: "通过轻量 SSE 订阅新版本通知，无需等待轮询", en: "Receive instant release alerts via lightweight SSE")
     }
     var autoDownloadUpdates: String { t(zh: "自动后台下载", en: "Download Updates Automatically") }
     var autoDownloadUpdatesCaption: String {

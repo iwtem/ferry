@@ -5,6 +5,7 @@ PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="Ferry"
 BUNDLE_ID="com.iwtem.Ferry"
 GITHUB_REPO="${FERRY_GITHUB_REPO:-iwtem/ferry}"
+UPDATE_PUSH_URL="${FERRY_UPDATE_PUSH_URL:-https://ntfy.sh/ferry-releases-iwtem-v1/sse}"
 VERSION_FILE="$PROJECT_DIR/VERSION"
 if [[ -n "${APP_VERSION:-}" ]]; then
     SHORT_VERSION="$APP_VERSION"
@@ -204,6 +205,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <string>$BUILD_NUMBER</string>
     <key>FerryGitHubRepo</key>
     <string>$GITHUB_REPO</string>
+    <key>FerryUpdatePushURL</key>
+    <string>$UPDATE_PUSH_URL</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>

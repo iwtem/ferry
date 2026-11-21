@@ -215,6 +215,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var autoCheckForUpdates: Bool
     /// Automatically download verified release archives in the background when a new version is found.
     public var autoDownloadUpdates: Bool
+    /// Subscribe to real-time SSE release push events so new releases download within seconds of publishing.
+    public var realtimeUpdatePushEnabled: Bool
     /// Optional version string the user chose to skip reminders for.
     public var skippedUpdateVersion: String?
 
@@ -240,6 +242,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         selectionShortcut: HotkeyShortcut = .defaultSelectionTranslate,
         autoCheckForUpdates: Bool = true,
         autoDownloadUpdates: Bool = true,
+        realtimeUpdatePushEnabled: Bool = true,
         skippedUpdateVersion: String? = nil
     ) {
         self.activeProvider = activeProvider
@@ -259,6 +262,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.selectionShortcut = selectionShortcut
         self.autoCheckForUpdates = autoCheckForUpdates
         self.autoDownloadUpdates = autoDownloadUpdates
+        self.realtimeUpdatePushEnabled = realtimeUpdatePushEnabled
         self.skippedUpdateVersion = skippedUpdateVersion
     }
 
@@ -267,7 +271,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, speech, appearance, language
         case screenshotOCREnabled, screenshotOCRShortcut
         case selectionShortcutEnabled, selectionShortcut
-        case autoCheckForUpdates, autoDownloadUpdates, skippedUpdateVersion
+        case autoCheckForUpdates, autoDownloadUpdates, realtimeUpdatePushEnabled, skippedUpdateVersion
     }
 
     // Every field falls back to its default, so settings files from older versions
@@ -292,6 +296,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         selectionShortcut = try c.decodeIfPresent(HotkeyShortcut.self, forKey: .selectionShortcut) ?? defaults.selectionShortcut
         autoCheckForUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoCheckForUpdates) ?? defaults.autoCheckForUpdates
         autoDownloadUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoDownloadUpdates) ?? defaults.autoDownloadUpdates
+        realtimeUpdatePushEnabled = try c.decodeIfPresent(Bool.self, forKey: .realtimeUpdatePushEnabled) ?? defaults.realtimeUpdatePushEnabled
         skippedUpdateVersion = try c.decodeIfPresent(String.self, forKey: .skippedUpdateVersion) ?? defaults.skippedUpdateVersion
     }
 

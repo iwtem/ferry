@@ -21,6 +21,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var desktopWidgetSession = TranslatorSession(settingsStore: settingsStore, translatorService: translatorService)
 
     private var statusItem: NSStatusItem?
+    private var statusUpdateDot: NSView?
     private let menuBarPanel = MenuBarPanelController()
     private var mainWindow: NSWindow?
     private var settingsWindow: NSWindow?
@@ -48,6 +49,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         setupGlobalCopyMonitor()
         setupGlobalHotkeys()
         observeLanguageChanges()
+        updateService.onStateChange = { [weak self] _ in
+            self?.refreshStatusUpdateBadge()
+        }
         updateService.start(settingsStore: settingsStore)
 
         // First launch: if no API key is configured yet, gently open the menu bar popover so user sees the app immediately
@@ -92,10 +96,37 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMainMenu()
         if let button = statusItem?.button {
             button.image = MenuBarIcon.make(accessibilityDescription: l10n.brandName)
-            button.toolTip = l10n.statusItemTooltip
         }
+        refreshStatusUpdateBadge()
         mainWindow?.title = l10n.brandName
         settingsWindow?.title = l10n.settingsWindowTitle
+    }
+
+    private func refreshStatusUpdateBadge() {
+        guard let button = statusItem?.button else { return }
+        let l10n = L10n(settingsStore.resolvedLanguage)
+        let showDot = updateService.shouldShowStatusBadge
+
+        if showDot, let version = updateService.state.release?.version.description {
+            button.toolTip = l10n.statusItemUpdateTooltip(version)
+        } else {
+            button.toolTip = l10n.statusItemTooltip
+        }
+
+        if showDot {
+            if statusUpdateDot == nil {
+                let dot = NSView(frame: NSRect(x: button.bounds.width - 8, y: 3, width: 6, height: 6))
+                dot.wantsLayer = true
+                dot.layer?.cornerRadius = 3
+                dot.layer?.backgroundColor = NSColor(srgbRed: 1.0, green: 0.443, blue: 0.349, alpha: 1.0).cgColor
+                dot.autoresizingMask = [.minXMargin, .maxYMargin]
+                button.addSubview(dot)
+                statusUpdateDot = dot
+            }
+            statusUpdateDot?.isHidden = false
+        } else {
+            statusUpdateDot?.isHidden = true
+        }
     }
 
     // MARK: - Standard Main Menu (enables Cmd+C/V/X/A/Z in LSUIElement app)

@@ -70,7 +70,18 @@ if [[ "$PUBLISH" == true ]]; then
     gh release create "$TAG" "$ZIP_PATH" "$SHA_PATH" \
         --title "渡 Ferry $TAG" \
         --notes "$RELEASE_BODY"
-    echo "==> Published $TAG! Existing Ferry installations will now detect and auto-download it."
+
+    PUSH_SSE_URL="${FERRY_UPDATE_PUSH_URL:-https://ntfy.sh/ferry-releases-iwtem-v1/sse}"
+    PUSH_PUBLISH_URL="${PUSH_SSE_URL%/sse}"
+    echo "==> Sending real-time update push notification to $PUSH_PUBLISH_URL..."
+    if curl -fsSL -X POST \
+        -H "Title: Ferry $TAG" \
+        -d "$CLEAN_VERSION" \
+        "$PUSH_PUBLISH_URL" >/dev/null; then
+        echo "==> Push notification sent! Online Ferry clients will begin downloading immediately."
+    else
+        echo "Warning: push notification failed; clients will still pick up $TAG via ETag check." >&2
+    fi
 else
     echo ""
     echo "To publish to GitHub Releases so existing Ferry apps auto-update:"

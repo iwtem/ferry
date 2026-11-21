@@ -3,6 +3,7 @@ import Observation
 
 public extension Notification.Name {
     static let ferryHotkeySettingsDidChange = Notification.Name("Ferry.HotkeySettingsDidChange")
+    static let ferryUpdateSettingsDidChange = Notification.Name("Ferry.UpdateSettingsDidChange")
 }
 
 @MainActor
@@ -19,6 +20,10 @@ public final class SettingsStore {
                 || oldValue.selectionShortcutEnabled != settings.selectionShortcutEnabled
                 || oldValue.selectionShortcut != settings.selectionShortcut {
                 NotificationCenter.default.post(name: .ferryHotkeySettingsDidChange, object: nil)
+            }
+            if oldValue.autoCheckForUpdates != settings.autoCheckForUpdates
+                || oldValue.realtimeUpdatePushEnabled != settings.realtimeUpdatePushEnabled {
+                NotificationCenter.default.post(name: .ferryUpdateSettingsDidChange, object: nil)
             }
             saveSettings()
         }

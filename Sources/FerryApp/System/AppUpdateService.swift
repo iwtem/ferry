@@ -42,29 +42,45 @@ public enum UpdateState: Equatable, Sendable {
     }
 }
 
-/// Native GitHub Releases auto-updater: checks for new releases, auto-downloads in the background,
-/// verifies SHA-256 integrity, and atomically replaces & relaunches `Ferry.app` on user click.
+/// Native GitHub Releases auto-updater with real-time SSE push alerts (`ntfy.sh` / custom SSE),
+/// ETag conditional fallback, background SHA-256 verification, and atomic replace & relaunch.
 @MainActor
 @Observable
 public final class AppUpdateService {
-    public var state: UpdateState = .idle
+    public var state: UpdateState = .idle {
+        didSet {
+            if oldValue != state {
+                onStateChange?(state)
+            }
+        }
+    }
     public var lastCheckedAt: Date? = nil
     public var isBannerDismissed: Bool = false
+    public var isPushConnected: Bool = false
+    public var onStateChange: ((UpdateState) -> Void)?
 
     public let repository: String
+    public let pushEndpointURL: URL?
     public let currentVersionString: String
     public let currentVersion: SemanticVersion
 
     private weak var settingsStore: SettingsStore?
     private var activeTask: Task<Void, Never>?
     private var schedulerTask: Task<Void, Never>?
+    private var pushTask: Task<Void, Never>?
+    private var wakeObserver: NSObjectProtocol?
+    private var settingsObserver: NSObjectProtocol?
+    private var lastETag: String?
     private let session: URLSession
+    private let pushSession: URLSession
 
-    private static let checkInterval: Duration = .seconds(12 * 60 * 60)
-    private static let initialDelay: Duration = .seconds(8)
+    /// ETag-conditional fallback interval (304 responses do not count against GitHub's rate limit).
+    private static let fallbackCheckInterval: Duration = .seconds(30 * 60)
+    private static let initialDelay: Duration = .seconds(5)
 
     public init(
         repository: String? = nil,
+        pushEndpoint: String? = nil,
         currentVersionString: String? = nil,
         session: URLSession = .shared
     ) {
@@ -72,12 +88,23 @@ public final class AppUpdateService {
         self.repository = repository
             ?? (info?["FerryGitHubRepo"] as? String)
             ?? "iwtem/ferry"
+        let rawPush = pushEndpoint
+            ?? (info?["FerryUpdatePushURL"] as? String)
+            ?? UpdatePushParser.defaultPushEndpoint
+        let trimmedPush = rawPush.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.pushEndpointURL = trimmedPush.isEmpty ? nil : URL(string: trimmedPush)
         let rawVersion = currentVersionString
             ?? (info?["CFBundleShortVersionString"] as? String)
             ?? "0.1.0"
         self.currentVersionString = rawVersion
         self.currentVersion = SemanticVersion(parsing: rawVersion) ?? SemanticVersion(major: 0, minor: 1, patch: 0)
         self.session = session
+
+        let pushConfig = URLSessionConfiguration.ephemeral
+        pushConfig.timeoutIntervalForRequest = 300
+        pushConfig.timeoutIntervalForResource = 86_400
+        pushConfig.waitsForConnectivity = true
+        self.pushSession = URLSession(configuration: pushConfig)
     }
 
     public var isRunningFromAppBundle: Bool {
@@ -95,32 +122,160 @@ public final class AppUpdateService {
         }
     }
 
+    /// True when the menu bar status icon should display a subtle update indicator dot.
+    public var shouldShowStatusBadge: Bool {
+        switch state {
+        case .available, .readyToInstall:
+            return true
+        default:
+            return false
+        }
+    }
+
     public func start(settingsStore: SettingsStore) {
         self.settingsStore = settingsStore
+        startFallbackScheduler()
+        syncPushListener()
+        installObservers()
+    }
+
+    public func stop() {
+        schedulerTask?.cancel()
+        schedulerTask = nil
+        pushTask?.cancel()
+        pushTask = nil
+        isPushConnected = false
+        activeTask?.cancel()
+        activeTask = nil
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
+        }
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+            self.settingsObserver = nil
+        }
+    }
+
+    private func startFallbackScheduler() {
         schedulerTask?.cancel()
         schedulerTask = Task { [weak self] in
             try? await Task.sleep(for: Self.initialDelay)
             while !Task.isCancelled {
                 guard let self else { return }
                 if self.settingsStore?.settings.autoCheckForUpdates == true, !self.state.isBusy {
-                    await self.performCheck(userInitiated: false)
+                    await self.performCheck(userInitiated: false, bypassETag: false)
                 }
-                try? await Task.sleep(for: Self.checkInterval)
+                try? await Task.sleep(for: Self.fallbackCheckInterval)
             }
         }
     }
 
-    public func stop() {
-        schedulerTask?.cancel()
-        schedulerTask = nil
-        activeTask?.cancel()
-        activeTask = nil
+    private func syncPushListener() {
+        pushTask?.cancel()
+        pushTask = nil
+        isPushConnected = false
+
+        guard let pushURL = pushEndpointURL,
+              settingsStore?.settings.autoCheckForUpdates == true,
+              settingsStore?.settings.realtimeUpdatePushEnabled == true
+        else {
+            return
+        }
+
+        pushTask = Task { [weak self] in
+            var backoffSeconds: Double = 3
+            while !Task.isCancelled {
+                guard let self else { return }
+                var request = URLRequest(url: pushURL)
+                request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+                request.setValue("Ferry/\(self.currentVersionString)", forHTTPHeaderField: "User-Agent")
+
+                do {
+                    let (bytes, response) = try await self.pushSession.bytes(for: request)
+                    guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                        throw URLError(.badServerResponse)
+                    }
+
+                    self.isPushConnected = true
+                    backoffSeconds = 3
+
+                    for try await line in bytes.lines {
+                        if Task.isCancelled { break }
+                        self.handlePushEvent(UpdatePushParser.parseSSELine(line))
+                    }
+                } catch is CancellationError {
+                    break
+                } catch {
+                    // Silent reconnect with exponential backoff
+                }
+
+                self.isPushConnected = false
+                guard !Task.isCancelled else { break }
+                try? await Task.sleep(for: .seconds(backoffSeconds))
+                backoffSeconds = min(backoffSeconds * 2, 60)
+            }
+            self?.isPushConnected = false
+        }
+    }
+
+    private func handlePushEvent(_ event: UpdatePushEvent) {
+        switch event {
+        case .connected:
+            isPushConnected = true
+        case .keepalive, .ignore:
+            break
+        case .releaseAvailable(let versionHint):
+            if let hint = versionHint, hint <= currentVersion {
+                return
+            }
+            guard settingsStore?.settings.autoCheckForUpdates == true, !state.isBusy else { return }
+            activeTask?.cancel()
+            activeTask = Task { [weak self] in
+                await self?.performCheck(userInitiated: false, bypassETag: true)
+            }
+        }
+    }
+
+    private func installObservers() {
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.syncPushListener()
+                if self.settingsStore?.settings.autoCheckForUpdates == true, !self.state.isBusy {
+                    try? await Task.sleep(for: .seconds(3))
+                    guard !Task.isCancelled else { return }
+                    await self.performCheck(userInitiated: false, bypassETag: false)
+                }
+            }
+        }
+
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+        }
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: .ferryUpdateSettingsDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.syncPushListener()
+            }
+        }
     }
 
     public func checkForUpdates(userInitiated: Bool = true) {
         activeTask?.cancel()
         activeTask = Task { [weak self] in
-            await self?.performCheck(userInitiated: userInitiated)
+            await self?.performCheck(userInitiated: userInitiated, bypassETag: userInitiated)
         }
     }
 
@@ -162,7 +317,7 @@ public final class AppUpdateService {
 
     // MARK: - Check
 
-    private func performCheck(userInitiated: Bool) async {
+    private func performCheck(userInitiated: Bool, bypassETag: Bool) async {
         guard let endpoint = UpdateFeedParser.latestReleaseEndpoint(for: repository) else {
             if userInitiated {
                 state = .failed(AppUpdateError.invalidEndpoint.localizedDescription)
@@ -178,6 +333,9 @@ public final class AppUpdateService {
         request.timeoutInterval = 20
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("Ferry/\(currentVersionString)", forHTTPHeaderField: "User-Agent")
+        if !bypassETag, let etag = lastETag {
+            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
+        }
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -186,11 +344,22 @@ public final class AppUpdateService {
             guard let http = response as? HTTPURLResponse else {
                 throw AppUpdateError.invalidResponse
             }
+            if http.statusCode == 304 {
+                lastCheckedAt = Date()
+                if state == .checking {
+                    state = .idle
+                }
+                return
+            }
             if http.statusCode == 404 {
                 throw AppUpdateError.httpError(404)
             }
             guard (200...299).contains(http.statusCode) else {
                 throw AppUpdateError.httpError(http.statusCode)
+            }
+
+            if let etag = http.value(forHTTPHeaderField: "ETag") {
+                lastETag = etag
             }
 
             let release = try UpdateFeedParser.parseLatestRelease(from: data)
