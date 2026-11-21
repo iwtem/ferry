@@ -19,7 +19,11 @@
    - 在任意应用中选中文字后，快速连按两次 `⌘ + C`，会在鼠标附近弹出悬浮翻译卡片并自动流式翻译。
    - 点击外部自动隐藏（点击图钉可固定在屏幕上），按 `Esc` 立即关闭。
 
-5. **内置大模型支持（OpenAI 兼容流式接口）**
+5. **截图 OCR 翻译（macOS 原生 Vision 离线识别）**
+   - 默认按下全局快捷键 `⌥ + ⇧ + S`（可在设置中自定义），或在菜单栏弹窗 / 右键菜单 / 大窗口点击「截图翻译」，拉框截取任意屏幕区域（PDF 扫描件、图片、报错弹窗、视频字幕等）。
+   - 使用 macOS 原生 `Vision` 本地离线识别多语种文字并自动整理换行，识别后直接在鼠标附近流式弹出译文；在大窗口点击「粘贴并翻译」也支持直接识别剪贴板里的截图。
+
+6. **内置大模型支持（OpenAI 兼容流式接口）**
    - **DeepSeek**：默认接入 `https://api.deepseek.com/v1`（`deepseek-chat` / `deepseek-reasoner`）。
    - **阿里百炼 (DashScope)**：默认接入 `https://dashscope.aliyuncs.com/compatible-mode/v1`（`qwen-plus` / `qwen-turbo` / `qwen-max` / `qwen-long`）。
    - **自定义 OpenAI 兼容**：可接入 OpenAI、OpenRouter、本地 Ollama (`http://localhost:11434/v1`) 等。
@@ -41,6 +45,30 @@ dist/Ferry.app
 
 可直接双击运行，或拖入 `/Applications`（应用程序）文件夹使用。
 
+### 本机一键更新重启（开发调试用）
+
+修改代码后，一条命令自动编译签名、退出旧版、替换 `/Applications/Ferry.app` 并重新打开：
+
+```bash
+./Scripts/deploy_local.sh
+```
+
+### 发布新版本（支持应用内自动下载与一键更新）
+
+Ferry 内置了基于 **GitHub Releases** 的原生自动更新（启动与后台定时检测、自动静默下载并校验 SHA-256、点击「重启更新」自动替换并重新打开新版）。
+
+发版时只需运行：
+
+```bash
+# 仅打包生成 dist/Ferry-<version>.zip 与 .sha256
+./Scripts/release.sh 0.2.0
+
+# 打包并直接通过 GitHub CLI (gh) 发布到 GitHub Releases
+./Scripts/release.sh 0.2.0 --publish --notes "新增截图 OCR 翻译与应用内自动更新"
+```
+
+> 使用同一套 `.signing/` 证书签名发布的版本，在应用内自动更新重启后，**辅助功能**与**屏幕录制**权限会自动保留，无需重新勾选。
+
 ### 运行核心单元测试
 
 ```bash
@@ -55,6 +83,10 @@ macOS 需要授予 **辅助功能（Accessibility）** 权限，软件才能在�
 2. 点击「打开系统设置 → 辅助功能」。
 3. 将 `Ferry.app` 勾选开启（如已拖入 `/Applications`，请选择应用程序目录中的版本）。
 4. 回到设置页点击「重新检测」，显示绿色已授权即可使用。
+
+## 产品规划
+
+更多后续功能规划与迭代进度见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 后续扩展：macOS 原生桌面小组件（WidgetKit）
 

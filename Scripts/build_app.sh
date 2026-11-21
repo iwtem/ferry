@@ -4,13 +4,23 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="Ferry"
 BUNDLE_ID="com.iwtem.Ferry"
+GITHUB_REPO="${FERRY_GITHUB_REPO:-iwtem/ferry}"
+VERSION_FILE="$PROJECT_DIR/VERSION"
+if [[ -n "${APP_VERSION:-}" ]]; then
+    SHORT_VERSION="$APP_VERSION"
+elif [[ -f "$VERSION_FILE" ]]; then
+    SHORT_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
+else
+    SHORT_VERSION="0.1.0"
+fi
+BUILD_NUMBER="${APP_BUILD_NUMBER:-$(git -C "$PROJECT_DIR" rev-list --count HEAD 2>/dev/null || echo 1)}"
 BUILD_DIR="$PROJECT_DIR/dist"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
-echo "==> Building $APP_NAME (release)..."
+echo "==> Building $APP_NAME v$SHORT_VERSION ($BUILD_NUMBER) (release)..."
 cd "$PROJECT_DIR"
 swift build --disable-sandbox -c release
 
@@ -189,9 +199,11 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>$SHORT_VERSION</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$BUILD_NUMBER</string>
+    <key>FerryGitHubRepo</key>
+    <string>$GITHUB_REPO</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>

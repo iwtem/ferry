@@ -6,10 +6,14 @@ import SwiftUI
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settingsStore = SettingsStore()
     private let translatorService = LLMTranslatorService()
+    private let ocrService = OCRService()
 
     private lazy var copyMonitor = GlobalCopyMonitor(settingsStore: settingsStore)
     private lazy var speechService = SpeechService(settingsStore: settingsStore)
     private let launchAtLogin = LaunchAtLoginService()
+    private let screenCaptureService = ScreenCaptureService()
+    private let hotkeyService = GlobalHotkeyService()
+    private let updateService = AppUpdateService()
     private lazy var popoverSession = TranslatorSession(settingsStore: settingsStore, translatorService: translatorService)
     private lazy var mainWindowSession = TranslatorSession(settingsStore: settingsStore, translatorService: translatorService)
     private lazy var quickPopupSession = TranslatorSession(settingsStore: settingsStore, translatorService: translatorService)
@@ -20,6 +24,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindow: NSWindow?
     private var settingsWindow: NSWindow?
     private var languageObserver: NSObjectProtocol?
+    private var ocrTask: Task<Void, Never>?
 
     private let quickPopupController = QuickPopupController()
     private let desktopWidgetController = DesktopMiniWidgetController()
@@ -38,7 +43,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMainMenu()
         setupStatusItem()
         setupGlobalCopyMonitor()
+        setupGlobalHotkeys()
         observeLanguageChanges()
+        updateService.start(settingsStore: settingsStore)
 
         // First launch: if no API key is configured yet, gently open the menu bar popover so user sees the app immediately
         if !settingsStore.hasActiveAPIKey {
@@ -53,7 +60,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             NotificationCenter.default.removeObserver(languageObserver)
             self.languageObserver = nil
         }
+        ocrTask?.cancel()
+        ocrTask = nil
         copyMonitor.stopMonitoring()
+        hotkeyService.stop()
+        screenCaptureService.stopObserving()
+        updateService.stop()
         speechService.stop()
         launchAtLogin.stopObserving()
     }
@@ -91,6 +103,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "Ferry")
         appMenu.addItem(withTitle: l10n.menuSettings, action: #selector(openSettingsAction), keyEquivalent: ",")
+        appMenu.addItem(withTitle: l10n.statusCheckForUpdates, action: #selector(checkForUpdatesAction), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: l10n.menuQuitApp, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
@@ -150,6 +163,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let l10n = L10n(settingsStore.resolvedLanguage)
         let menu = NSMenu()
         menu.addItem(withTitle: l10n.statusQuickTranslate, action: #selector(openPopoverAction), keyEquivalent: "")
+        let ocrTitle = settingsStore.settings.screenshotOCREnabled
+            ? l10n.statusScreenshotOCRWithShortcut(settingsStore.settings.screenshotOCRShortcut.displayString)
+            : l10n.statusScreenshotOCR
+        menu.addItem(withTitle: ocrTitle, action: #selector(screenshotOCRAction), keyEquivalent: "")
         menu.addItem(withTitle: l10n.statusOpenMainWindow, action: #selector(openMainWindowAction), keyEquivalent: "")
         menu.addItem(
             withTitle: desktopWidgetController.isVisible ? l10n.statusHideMiniWidget : l10n.statusShowMiniWidget,
@@ -157,6 +174,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         )
         menu.addItem(NSMenuItem.separator())
+        if case .readyToInstall(let release, _) = updateService.state {
+            menu.addItem(
+                withTitle: l10n.statusRestartToUpdate(release.version.description),
+                action: #selector(installUpdateAction),
+                keyEquivalent: ""
+            )
+        } else {
+            menu.addItem(withTitle: l10n.statusCheckForUpdates, action: #selector(checkForUpdatesAction), keyEquivalent: "")
+        }
         menu.addItem(withTitle: l10n.menuSettings, action: #selector(openSettingsAction), keyEquivalent: ",")
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: l10n.menuQuitApp, action: #selector(quitAction), keyEquivalent: "q")
@@ -186,6 +212,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             session: popoverSession,
             settingsStore: settingsStore,
             speechService: speechService,
+            updateService: updateService,
+            onScreenshotOCR: { [weak self] in
+                self?.triggerScreenshotOCR(destination: .quickPopup)
+            },
             onOpenMainWindow: { [weak self] in
                 guard let self else { return }
                 self.menuBarPanel.hide()
@@ -220,9 +250,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         copyMonitor.startMonitoring()
     }
 
+    private func setupGlobalHotkeys() {
+        hotkeyService.onScreenshotOCR = { [weak self] in
+            self?.triggerScreenshotOCR(destination: .quickPopup)
+        }
+        hotkeyService.start(settingsStore: settingsStore)
+    }
+
     private func handleDoubleCopy(text: String, near mouseLocation: NSPoint) {
         quickPopupSession.targetLanguage = settingsStore.settings.defaultTargetLanguage
         quickPopupSession.translate(text: text)
+        showQuickPopup(near: mouseLocation)
+    }
+
+    private func showQuickPopup(near mouseLocation: NSPoint) {
         quickPopupUIState.isPinned = quickPopupController.isPinned
         quickPopupUIState.showFullSource = false
 
@@ -251,6 +292,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                         self?.quickPopupController.hide()
                         self?.openSettingsWindow()
                     },
+                    onOpenScreenRecordingSettings: { [weak self] in
+                        self?.screenCaptureService.openScreenRecordingSettings()
+                    },
                     onClose: { [weak self] in
                         self?.speechService.stop()
                         self?.quickPopupUIState.isPinned = false
@@ -258,6 +302,88 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 )
             )
+        }
+    }
+
+    // MARK: - Screenshot OCR Translation
+
+    private enum ScreenshotOCRDestination {
+        case quickPopup
+        case mainWindow
+    }
+
+    private func triggerScreenshotOCR(destination: ScreenshotOCRDestination) {
+        guard !screenCaptureService.isCapturing else { return }
+
+        let wasPopoverOpen = menuBarPanel.isVisible
+        if wasPopoverOpen {
+            menuBarPanel.hide()
+        }
+
+        ocrTask?.cancel()
+        ocrTask = Task { [weak self] in
+            guard let self else { return }
+            if wasPopoverOpen {
+                try? await Task.sleep(for: .milliseconds(160))
+                guard !Task.isCancelled else { return }
+            }
+
+            do {
+                guard let capture = try await self.screenCaptureService.captureInteractiveRegion() else {
+                    return // User pressed Esc to cancel
+                }
+                guard !Task.isCancelled else { return }
+
+                switch destination {
+                case .quickPopup:
+                    self.quickPopupSession.targetLanguage = self.settingsStore.settings.defaultTargetLanguage
+                    self.quickPopupSession.beginOCRRecognition()
+                    self.showQuickPopup(near: capture.anchorPoint)
+                    await self.performOCR(on: capture.cgImage, into: self.quickPopupSession)
+                case .mainWindow:
+                    self.openMainWindow()
+                    self.mainWindowSession.beginOCRRecognition()
+                    await self.performOCR(on: capture.cgImage, into: self.mainWindowSession)
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                let session = destination == .mainWindow ? self.mainWindowSession : self.quickPopupSession
+                session.failOCRRecognition(message: error.localizedDescription)
+                if destination == .quickPopup {
+                    self.showQuickPopup(near: NSEvent.mouseLocation)
+                }
+            }
+        }
+    }
+
+    private func recognizeAndTranslate(image: CGImage, in destination: ScreenshotOCRDestination) {
+        ocrTask?.cancel()
+        ocrTask = Task { [weak self] in
+            guard let self else { return }
+            let session = destination == .mainWindow ? self.mainWindowSession : self.quickPopupSession
+            session.beginOCRRecognition()
+            await self.performOCR(on: image, into: session)
+        }
+    }
+
+    private func performOCR(on cgImage: CGImage, into session: TranslatorSession) async {
+        do {
+            let recognized = try await ocrService.recognizeText(from: cgImage)
+            guard !Task.isCancelled else { return }
+            session.finishOCRRecognition(withText: recognized)
+        } catch let ocrError as OCRError {
+            guard !Task.isCancelled else { return }
+            if ocrError == .noTextFound && !screenCaptureService.hasScreenRecordingPermission {
+                session.failOCRRecognition(
+                    message: OCRError.permissionDenied.localizedDescription,
+                    needsScreenRecordingPermission: true
+                )
+            } else {
+                session.failOCRRecognition(message: ocrError.localizedDescription)
+            }
+        } catch {
+            guard !Task.isCancelled else { return }
+            session.failOCRRecognition(message: error.localizedDescription)
         }
     }
 
@@ -309,11 +435,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let copyMonitor = self.copyMonitor
         let speechService = self.speechService
         let mainWindowUIState = self.mainWindowUIState
+        let onScreenshotOCR: () -> Void = { [weak self] in
+            self?.triggerScreenshotOCR(destination: .mainWindow)
+        }
+        let onPasteImageOCR: (CGImage) -> Void = { [weak self] image in
+            self?.recognizeAndTranslate(image: image, in: .mainWindow)
+        }
         let onToggleDesktopWidget: () -> Void = { [weak self] in
             self?.toggleDesktopWidget()
         }
         let onOpenSettings: () -> Void = { [weak self] in
             self?.openSettingsWindow()
+        }
+        let onOpenScreenRecordingSettings: () -> Void = { [weak self] in
+            self?.screenCaptureService.openScreenRecordingSettings()
         }
 
         let rootView = MainWindowView(
@@ -321,9 +456,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsStore: settingsStore,
             copyMonitor: copyMonitor,
             speechService: speechService,
+            updateService: updateService,
             uiState: mainWindowUIState,
+            onScreenshotOCR: onScreenshotOCR,
+            onPasteImageOCR: onPasteImageOCR,
             onToggleDesktopWidget: onToggleDesktopWidget,
-            onOpenSettings: onOpenSettings
+            onOpenSettings: onOpenSettings,
+            onOpenScreenRecordingSettings: onOpenScreenRecordingSettings
         )
 
         let window = NSWindow(
@@ -360,6 +499,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let translatorService = self.translatorService
         let speechService = self.speechService
         let launchAtLogin = self.launchAtLogin
+        let screenCaptureService = self.screenCaptureService
+        let hotkeyService = self.hotkeyService
+        let updateService = self.updateService
         let settingsUIState = self.settingsUIState
 
         let rootView = SettingsView(
@@ -368,6 +510,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             translatorService: translatorService,
             speechService: speechService,
             launchAtLogin: launchAtLogin,
+            screenCaptureService: screenCaptureService,
+            hotkeyService: hotkeyService,
+            updateService: updateService,
+            onTriggerScreenshotOCR: { [weak self] in
+                self?.triggerScreenshotOCR(destination: .quickPopup)
+            },
             uiState: settingsUIState
         )
 
@@ -397,6 +545,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         openPopover()
     }
 
+    @objc private func screenshotOCRAction() {
+        triggerScreenshotOCR(destination: .quickPopup)
+    }
+
     @objc private func openMainWindowAction() {
         openMainWindow()
     }
@@ -407,6 +559,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettingsAction() {
         openSettingsWindow()
+    }
+
+    @objc private func checkForUpdatesAction() {
+        settingsUIState.selectedPane = .general
+        openSettingsWindow()
+        updateService.checkForUpdates(userInitiated: true)
+    }
+
+    @objc private func installUpdateAction() {
+        updateService.installAndRelaunch()
     }
 
     @objc private func quitAction() {

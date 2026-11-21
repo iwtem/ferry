@@ -1,3 +1,4 @@
+import AppKit
 import FerryCore
 import Observation
 import SwiftUI
@@ -49,6 +50,10 @@ public struct SettingsView: View {
     public var translatorService: LLMTranslatorService
     public var speechService: SpeechService
     public var launchAtLogin: LaunchAtLoginService
+    public var screenCaptureService: ScreenCaptureService
+    public var hotkeyService: GlobalHotkeyService
+    public var updateService: AppUpdateService
+    public var onTriggerScreenshotOCR: () -> Void
     @Bindable public var uiState: SettingsUIState
 
     public static let windowSize = CGSize(width: 780, height: 600)
@@ -59,6 +64,10 @@ public struct SettingsView: View {
         translatorService: LLMTranslatorService,
         speechService: SpeechService,
         launchAtLogin: LaunchAtLoginService = LaunchAtLoginService(),
+        screenCaptureService: ScreenCaptureService = ScreenCaptureService(),
+        hotkeyService: GlobalHotkeyService = GlobalHotkeyService(),
+        updateService: AppUpdateService = AppUpdateService(),
+        onTriggerScreenshotOCR: @escaping () -> Void = {},
         uiState: SettingsUIState
     ) {
         self.settingsStore = settingsStore
@@ -66,11 +75,16 @@ public struct SettingsView: View {
         self.translatorService = translatorService
         self.speechService = speechService
         self.launchAtLogin = launchAtLogin
+        self.screenCaptureService = screenCaptureService
+        self.hotkeyService = hotkeyService
+        self.updateService = updateService
+        self.onTriggerScreenshotOCR = onTriggerScreenshotOCR
         self.uiState = uiState
     }
 
-    private var needsAccessibilityAttention: Bool {
-        settingsStore.settings.doubleCopyEnabled && !copyMonitor.isAccessibilityTrusted
+    private var needsPermissionAttention: Bool {
+        (settingsStore.settings.doubleCopyEnabled && !copyMonitor.isAccessibilityTrusted)
+            || (settingsStore.settings.screenshotOCREnabled && !screenCaptureService.hasScreenRecordingPermission)
     }
 
     private var lang: ResolvedAppLanguage { settingsStore.resolvedLanguage }
@@ -87,6 +101,7 @@ public struct SettingsView: View {
         .ferryLocalized(lang)
         .onAppear {
             copyMonitor.refreshPermissionStatus()
+            screenCaptureService.refreshPermissionStatus()
             launchAtLogin.refreshStatus()
             uiState.selectedProviderTab = settingsStore.settings.activeProvider
         }
@@ -112,7 +127,8 @@ public struct SettingsView: View {
                 SidebarItem(
                     pane: pane,
                     selected: uiState.selectedPane == pane,
-                    alert: pane == .shortcut && needsAccessibilityAttention
+                    alert: (pane == .shortcut && needsPermissionAttention)
+                        || (pane == .general && updateService.state.isReadyToInstall)
                 ) {
                     withAnimation(FerryMotion.animation(FerryMotion.spring)) {
                         uiState.selectedPane = pane
@@ -352,8 +368,11 @@ public struct SettingsView: View {
     // MARK: - Shortcut
 
     private var shortcutPane: some View {
-        let enabled = settingsStore.settings.doubleCopyEnabled
+        let doubleCopyEnabled = settingsStore.settings.doubleCopyEnabled
+        let screenshotEnabled = settingsStore.settings.screenshotOCREnabled
+        let shortcut = settingsStore.settings.screenshotOCRShortcut
         let trusted = copyMonitor.isAccessibilityTrusted
+        let screenGranted = screenCaptureService.hasScreenRecordingPermission
 
         return VStack(alignment: .leading, spacing: 22) {
             StageHero(
@@ -368,35 +387,96 @@ public struct SettingsView: View {
             )
             .background(WindowDragArea())
 
-            GlassCard {
-                GlassRow(title: l10n.doubleCopyToggle) {
-                    GlassToggle(isOn: Binding(
-                        get: { settingsStore.settings.doubleCopyEnabled },
-                        set: { newValue in
-                            withAnimation(FerryMotion.animation(FerryMotion.quick)) {
-                                settingsStore.settings.doubleCopyEnabled = newValue
+            VStack(alignment: .leading, spacing: 8) {
+                GlassLabel(l10n.doubleCopySectionLabel)
+                GlassCard {
+                    GlassRow(title: l10n.doubleCopyToggle) {
+                        GlassToggle(isOn: Binding(
+                            get: { settingsStore.settings.doubleCopyEnabled },
+                            set: { newValue in
+                                withAnimation(FerryMotion.animation(FerryMotion.quick)) {
+                                    settingsStore.settings.doubleCopyEnabled = newValue
+                                }
+                            }
+                        ))
+                    }
+                    GlassRow(title: l10n.doubleCopyInterval, caption: l10n.doubleCopyIntervalCaption, divider: false) {
+                        HStack(spacing: 10) {
+                            Slider(
+                                value: Binding(
+                                    get: { Double(settingsStore.settings.doubleCopyIntervalMs) },
+                                    set: { settingsStore.settings.doubleCopyIntervalMs = Int(($0 / 25).rounded() * 25) }
+                                ),
+                                in: 250...700
+                            )
+                            .controlSize(.small)
+                            .frame(width: 170)
+                            Text("\(settingsStore.settings.doubleCopyIntervalMs) ms")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(Stage.textSecondary)
+                                .frame(width: 56, alignment: .trailing)
+                        }
+                        .disabled(!doubleCopyEnabled)
+                        .opacity(doubleCopyEnabled ? 1 : 0.4)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                GlassLabel(l10n.screenshotOCRSectionLabel)
+                GlassCard {
+                    GlassRow(title: l10n.screenshotOCRToggle, caption: l10n.screenshotOCRToggleCaption) {
+                        GlassToggle(isOn: Binding(
+                            get: { settingsStore.settings.screenshotOCREnabled },
+                            set: { newValue in
+                                withAnimation(FerryMotion.animation(FerryMotion.quick)) {
+                                    settingsStore.settings.screenshotOCREnabled = newValue
+                                }
+                            }
+                        ))
+                    }
+
+                    GlassRow(title: l10n.screenshotOCRHotkeyRow, caption: l10n.screenshotOCRHotkeyCaption) {
+                        HStack(spacing: 6) {
+                            ShortcutRecorderButton(
+                                shortcut: Binding(
+                                    get: { settingsStore.settings.screenshotOCRShortcut },
+                                    set: { settingsStore.settings.screenshotOCRShortcut = $0 }
+                                ),
+                                onRecordingChange: { recording in
+                                    hotkeyService.setPaused(recording)
+                                }
+                            )
+                            if shortcut != .defaultScreenshotOCR {
+                                GlassIconButton(systemName: "arrow.uturn.backward", help: l10n.resetDefaultShortcutHelp) {
+                                    settingsStore.settings.screenshotOCRShortcut = .defaultScreenshotOCR
+                                }
                             }
                         }
-                    ))
-                }
-                GlassRow(title: l10n.doubleCopyInterval, caption: l10n.doubleCopyIntervalCaption, divider: false) {
-                    HStack(spacing: 10) {
-                        Slider(
-                            value: Binding(
-                                get: { Double(settingsStore.settings.doubleCopyIntervalMs) },
-                                set: { settingsStore.settings.doubleCopyIntervalMs = Int(($0 / 25).rounded() * 25) }
-                            ),
-                            in: 250...700
-                        )
-                        .controlSize(.small)
-                        .frame(width: 170)
-                        Text("\(settingsStore.settings.doubleCopyIntervalMs) ms")
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(Stage.textSecondary)
-                            .frame(width: 56, alignment: .trailing)
+                        .disabled(!screenshotEnabled)
+                        .opacity(screenshotEnabled ? 1 : 0.4)
                     }
-                    .disabled(!enabled)
-                    .opacity(enabled ? 1 : 0.4)
+
+                    GlassRow(title: l10n.tryScreenshotOCR, divider: false) {
+                        Button {
+                            onTriggerScreenshotOCR()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "text.viewfinder")
+                                    .font(.system(size: 11.5, weight: .semibold))
+                                Text(l10n.statusScreenshotOCR)
+                            }
+                        }
+                        .buttonStyle(GlassButtonStyle(kind: .glow, hue: .coral))
+                    }
+
+                    if hotkeyService.registrationFailed && screenshotEnabled {
+                        Rectangle().fill(Stage.hairline).frame(height: 1)
+                        StatusLine(text: l10n.shortcutConflictWarning, success: false)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
 
@@ -451,6 +531,57 @@ public struct SettingsView: View {
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
+
+                    Rectangle().fill(Stage.hairline).frame(height: 1)
+
+                    HStack(spacing: 12) {
+                        HueTile(
+                            systemName: screenGranted ? "checkmark.shield.fill" : "rectangle.dashed.badge.record",
+                            hue: screenGranted ? .teal : .amber,
+                            size: 32
+                        )
+                        .contentTransition(.symbolEffect(.replace))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(l10n.screenRecordingTitle)
+                                .font(.system(size: 13, weight: .medium))
+                            Text(screenGranted ? l10n.screenRecordingGrantedCaption : l10n.screenRecordingDeniedCaption)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        StatusPill(
+                            text: screenGranted ? l10n.grantedPill : l10n.notGrantedPill,
+                            color: screenGranted ? Stage.ok : Stage.warn
+                        )
+                        GlassIconButton(systemName: "arrow.clockwise", help: l10n.recheckPermissionHelp) {
+                            withAnimation(FerryMotion.animation(FerryMotion.spring)) {
+                                screenCaptureService.refreshPermissionStatus()
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+
+                    if !screenGranted {
+                        Rectangle().fill(Stage.hairline).frame(height: 1)
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                Button(l10n.openSystemSettings) {
+                                    screenCaptureService.openScreenRecordingSettings()
+                                }
+                                .buttonStyle(GlassButtonStyle(kind: .glow, hue: .coral))
+                                Button(l10n.requestAccess) {
+                                    screenCaptureService.requestScreenRecordingPermission()
+                                }
+                                .buttonStyle(GlassButtonStyle())
+                            }
+                            Text(l10n.screenRecordingTroubleshootTip)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Stage.textTertiary)
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 Text(l10n.clipboardPrivacyNote)
                     .font(.system(size: 11))
@@ -458,6 +589,7 @@ public struct SettingsView: View {
                     .padding(.horizontal, 4)
             }
             .animation(FerryMotion.animation(FerryMotion.spring), value: trusted)
+            .animation(FerryMotion.animation(FerryMotion.spring), value: screenGranted)
         }
     }
 
@@ -559,6 +691,8 @@ public struct SettingsView: View {
 
             speechSection
 
+            updatesSection
+
             VStack(alignment: .leading, spacing: 8) {
                 GlassLabel(l10n.otherSectionLabel)
                 GlassCard {
@@ -611,6 +745,155 @@ public struct SettingsView: View {
                     .foregroundStyle(Stage.textSecondary)
                     .frame(width: 48, alignment: .trailing)
             }
+        }
+    }
+
+    private var updatesSection: some View {
+        let autoCheck = settingsStore.settings.autoCheckForUpdates
+
+        return VStack(alignment: .leading, spacing: 8) {
+            GlassLabel(l10n.updatesSectionLabel)
+            GlassCard {
+                GlassRow(
+                    title: l10n.currentVersionLabel(updateService.currentVersionString),
+                    caption: updateStatusCaption
+                ) {
+                    updatePrimaryActionControl
+                }
+
+                if case .downloading(_, let progress) = updateService.state {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ProgressView(value: progress)
+                            .progressViewStyle(.linear)
+                            .controlSize(.small)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 10)
+                }
+
+                if let release = updateService.state.release, !release.releaseNotes.isEmpty {
+                    Rectangle().fill(Stage.hairline).frame(height: 1)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(release.name)
+                                .font(.system(size: 12, weight: .semibold))
+                            Spacer()
+                            Button(l10n.viewReleaseNotes) {
+                                updateService.openReleasePage()
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(FerryTheme.accentText)
+
+                            if !updateService.state.isBusy {
+                                Button(l10n.skipThisVersion) {
+                                    updateService.skipCurrentUpdate()
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Stage.textSecondary)
+                                .padding(.leading, 8)
+                            }
+                        }
+                        Text(release.releaseNotes)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(5)
+                            .textSelection(.enabled)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if case .failed(let errorMessage) = updateService.state {
+                    Rectangle().fill(Stage.hairline).frame(height: 1)
+                    StatusLine(text: errorMessage, success: false)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                GlassRow(title: l10n.autoCheckUpdates, caption: l10n.autoCheckUpdatesCaption) {
+                    GlassToggle(isOn: Binding(
+                        get: { settingsStore.settings.autoCheckForUpdates },
+                        set: { settingsStore.settings.autoCheckForUpdates = $0 }
+                    ))
+                }
+
+                GlassRow(
+                    title: l10n.autoDownloadUpdates,
+                    caption: l10n.autoDownloadUpdatesCaption,
+                    divider: false
+                ) {
+                    GlassToggle(isOn: Binding(
+                        get: { settingsStore.settings.autoDownloadUpdates },
+                        set: { settingsStore.settings.autoDownloadUpdates = $0 }
+                    ))
+                    .disabled(!autoCheck)
+                    .opacity(autoCheck ? 1 : 0.4)
+                }
+            }
+        }
+    }
+
+    private var updateStatusCaption: String? {
+        switch updateService.state {
+        case .idle:
+            return nil
+        case .checking:
+            return l10n.checkingForUpdates
+        case .upToDate(let current):
+            return l10n.upToDateMessage(current)
+        case .available(let release):
+            return l10n.updateAvailableTitle(release.version.description)
+        case .downloading(let release, let progress):
+            return l10n.downloadingUpdateProgress(release.version.description, percent: Int((progress * 100).rounded()))
+        case .readyToInstall(let release, _):
+            return l10n.updateReadyTitle(release.version.description)
+        case .installing:
+            return l10n.installingUpdate
+        case .failed:
+            return nil
+        }
+    }
+
+    @ViewBuilder
+    private var updatePrimaryActionControl: some View {
+        switch updateService.state {
+        case .checking:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text(l10n.checkingForUpdates)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+        case .available:
+            Button(l10n.downloadUpdate) {
+                updateService.downloadUpdate()
+            }
+            .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal))
+        case .downloading(_, let progress):
+            Text("\(Int((progress * 100).rounded()))%")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(Stage.textSecondary)
+        case .readyToInstall:
+            Button(l10n.restartToUpdate) {
+                updateService.installAndRelaunch()
+            }
+            .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal))
+        case .installing:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text(l10n.installingUpdate)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+        case .idle, .upToDate, .failed:
+            Button(l10n.checkForUpdates) {
+                updateService.checkForUpdates(userInitiated: true)
+            }
+            .buttonStyle(GlassButtonStyle(kind: .glass))
         }
     }
 
@@ -960,6 +1243,132 @@ private struct Keycap: View {
                     .strokeBorder(Stage.selectedStroke, lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.2), radius: 0, y: 2)
+    }
+}
+
+// MARK: - Shortcut Recorder
+
+@MainActor
+private final class LocalKeyMonitorBox {
+    nonisolated(unsafe) private var monitor: Any?
+
+    func install(_ handler: @escaping (NSEvent) -> NSEvent?) {
+        remove()
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: handler)
+    }
+
+    func remove() {
+        if let monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+    }
+
+    deinit {
+        if let monitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+}
+
+/// Click-to-record global hotkey button. Captures one key-down with a primary modifier (⌘/⌥/⌃);
+/// pressing Esc cancels recording without changing the stored shortcut.
+private struct ShortcutRecorderButton: View {
+    @Binding var shortcut: HotkeyShortcut
+    var onRecordingChange: (Bool) -> Void = { _ in }
+
+    @ViewState private var isRecording = false
+    @ViewState private var hovering = false
+    @ViewState private var monitorBox = LocalKeyMonitorBox()
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        let l10n = L10n(appLanguage)
+        Button {
+            if isRecording {
+                stopRecording()
+            } else {
+                startRecording()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if isRecording {
+                    Circle()
+                        .fill(Stage.warn)
+                        .frame(width: 6, height: 6)
+                    Text(l10n.shortcutRecordingPrompt)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Stage.warn)
+                } else {
+                    ForEach(Array(shortcut.displayTokens.enumerated()), id: \.offset) { _, token in
+                        Text(token)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Stage.selectedFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .strokeBorder(Stage.selectedStroke, lineWidth: 0.75)
+                            )
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(minWidth: 112, minHeight: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isRecording ? Stage.warn.opacity(0.12) : (hovering ? Stage.controlHover : Stage.controlFill))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(isRecording ? Stage.warn : Stage.controlStroke, lineWidth: isRecording ? 1.25 : 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .onDisappear { stopRecording() }
+        .animation(FerryMotion.animation(FerryMotion.quick), value: isRecording)
+        .animation(FerryMotion.animation(FerryMotion.quick), value: hovering)
+    }
+
+    private func startRecording() {
+        stopRecording()
+        isRecording = true
+        onRecordingChange(true)
+
+        monitorBox.install { event in
+            // Escape cancels recording
+            if event.keyCode == 53 {
+                stopRecording()
+                return nil
+            }
+
+            let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+            var modifiers: HotkeyModifiers = []
+            if flags.contains(.command) { modifiers.insert(.command) }
+            if flags.contains(.option)  { modifiers.insert(.option) }
+            if flags.contains(.control) { modifiers.insert(.control) }
+            if flags.contains(.shift)   { modifiers.insert(.shift) }
+
+            let candidate = HotkeyShortcut(keyCode: UInt32(event.keyCode), modifiers: modifiers)
+            if candidate.isValid {
+                shortcut = candidate
+                stopRecording()
+                return nil
+            }
+            NSSound.beep()
+            return nil
+        }
+    }
+
+    private func stopRecording() {
+        monitorBox.remove()
+        if isRecording {
+            isRecording = false
+            onRecordingChange(false)
+        }
     }
 }
 

@@ -11,7 +11,9 @@ public final class TranslatorSession {
     public var targetLanguage: TargetLanguage
     public var resolvedLanguage: TargetLanguage = .zhCN
     public var isTranslating: Bool = false
+    public var isRecognizingOCR: Bool = false
     public var errorMessage: String? = nil
+    public var needsScreenRecordingPermission: Bool = false
     public var copiedRecently: Bool = false
 
     private let settingsStore: SettingsStore
@@ -39,6 +41,8 @@ public final class TranslatorSession {
 
         cancel()
         errorMessage = nil
+        needsScreenRecordingPermission = false
+        isRecognizingOCR = false
         translatedText = ""
         isTranslating = true
 
@@ -97,10 +101,33 @@ public final class TranslatorSession {
         }
     }
 
+    public func beginOCRRecognition() {
+        cancel()
+        sourceText = ""
+        translatedText = ""
+        errorMessage = nil
+        needsScreenRecordingPermission = false
+        isRecognizingOCR = true
+    }
+
+    public func finishOCRRecognition(withText text: String) {
+        isRecognizingOCR = false
+        needsScreenRecordingPermission = false
+        translate(text: text)
+    }
+
+    public func failOCRRecognition(message: String, needsScreenRecordingPermission: Bool = false) {
+        isRecognizingOCR = false
+        isTranslating = false
+        errorMessage = message
+        self.needsScreenRecordingPermission = needsScreenRecordingPermission
+    }
+
     public func cancel() {
         activeTask?.cancel()
         activeTask = nil
         isTranslating = false
+        isRecognizingOCR = false
     }
 
     public func clear() {
@@ -108,6 +135,7 @@ public final class TranslatorSession {
         sourceText = ""
         translatedText = ""
         errorMessage = nil
+        needsScreenRecordingPermission = false
     }
 
     public func copyTranslation() {
@@ -141,6 +169,7 @@ public final class TranslatorSession {
         targetLanguage = other.targetLanguage
         resolvedLanguage = other.resolvedLanguage
         errorMessage = other.errorMessage
+        needsScreenRecordingPermission = other.needsScreenRecordingPermission
         if other.isTranslating {
             translate()
         }
@@ -153,5 +182,6 @@ public final class TranslatorSession {
         targetLanguage = record.targetLanguage
         resolvedLanguage = record.resolvedLanguage
         errorMessage = nil
+        needsScreenRecordingPermission = false
     }
 }

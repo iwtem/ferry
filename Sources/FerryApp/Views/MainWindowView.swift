@@ -19,26 +19,38 @@ public struct MainWindowView: View {
     public var settingsStore: SettingsStore
     public var copyMonitor: GlobalCopyMonitor
     public var speechService: SpeechService
+    public var updateService: AppUpdateService?
     public var uiState: MainWindowUIState
+    public var onScreenshotOCR: () -> Void
+    public var onPasteImageOCR: (CGImage) -> Void
     public var onToggleDesktopWidget: () -> Void
     public var onOpenSettings: () -> Void
+    public var onOpenScreenRecordingSettings: () -> Void
 
     public init(
         session: TranslatorSession,
         settingsStore: SettingsStore,
         copyMonitor: GlobalCopyMonitor,
         speechService: SpeechService,
+        updateService: AppUpdateService? = nil,
         uiState: MainWindowUIState,
+        onScreenshotOCR: @escaping () -> Void = {},
+        onPasteImageOCR: @escaping (CGImage) -> Void = { _ in },
         onToggleDesktopWidget: @escaping () -> Void,
-        onOpenSettings: @escaping () -> Void
+        onOpenSettings: @escaping () -> Void,
+        onOpenScreenRecordingSettings: @escaping () -> Void = {}
     ) {
         self.session = session
         self.settingsStore = settingsStore
         self.copyMonitor = copyMonitor
         self.speechService = speechService
+        self.updateService = updateService
         self.uiState = uiState
+        self.onScreenshotOCR = onScreenshotOCR
+        self.onPasteImageOCR = onPasteImageOCR
         self.onToggleDesktopWidget = onToggleDesktopWidget
         self.onOpenSettings = onOpenSettings
+        self.onOpenScreenRecordingSettings = onOpenScreenRecordingSettings
     }
 
     private var hasSource: Bool {
@@ -64,6 +76,9 @@ public struct MainWindowView: View {
                     HStack(spacing: 12) {
                         sourceCard
                         resultCard
+                    }
+                    if let updateService {
+                        UpdateBannerView(updateService: updateService)
                     }
                     if settingsStore.settings.doubleCopyEnabled && !copyMonitor.isAccessibilityTrusted {
                         permissionNotice
@@ -109,6 +124,13 @@ public struct MainWindowView: View {
             ModelMenu(settingsStore: settingsStore, onOpenSettings: onOpenSettings)
                 .padding(.trailing, 4)
 
+            GlassIconButton(
+                systemName: "text.viewfinder",
+                help: settingsStore.settings.screenshotOCREnabled
+                    ? l10n.screenshotOCRShortcutTooltip(settingsStore.settings.screenshotOCRShortcut.displayString)
+                    : l10n.screenshotOCRTooltip,
+                action: onScreenshotOCR
+            )
             GlassIconButton(systemName: "clock.arrow.circlepath", help: l10n.historyTooltip, isOn: uiState.showHistory) {
                 withAnimation(FerryMotion.animation(FerryMotion.spring)) {
                     uiState.showHistory.toggle()
@@ -211,6 +233,8 @@ public struct MainWindowView: View {
                 IconButton(systemName: "doc.on.clipboard", help: l10n.pasteAndTranslateTooltip) {
                     if let clip = NSPasteboard.general.string(forType: .string), !clip.isEmpty {
                         session.translate(text: clip)
+                    } else if let image = ScreenCaptureService.imageFromPasteboard() {
+                        onPasteImageOCR(image)
                     }
                 }
                 if !session.sourceText.isEmpty {
@@ -262,11 +286,26 @@ public struct MainWindowView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     if let error = session.errorMessage {
-                        ErrorBannerView(
-                            message: error,
-                            showSettingsAction: error.contains("API Key") || error.contains("401"),
-                            onOpenSettings: onOpenSettings
-                        )
+                        if session.needsScreenRecordingPermission {
+                            ErrorBannerView(
+                                message: error,
+                                actionTitle: l10n.openScreenRecordingSettings,
+                                onAction: onOpenScreenRecordingSettings
+                            )
+                        } else {
+                            ErrorBannerView(
+                                message: error,
+                                showSettingsAction: error.contains("API Key") || error.contains("401"),
+                                onOpenSettings: onOpenSettings
+                            )
+                        }
+                    } else if session.isRecognizingOCR {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text(l10n.recognizingOCREllipsis)
+                                .font(.system(size: 13.5))
+                                .foregroundStyle(.secondary)
+                        }
                     } else if !hasResult && !session.isTranslating {
                         emptyResult
                     } else if !hasResult && session.isTranslating {

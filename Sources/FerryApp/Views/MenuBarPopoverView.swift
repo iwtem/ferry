@@ -6,6 +6,8 @@ public struct MenuBarPopoverView: View {
     @Bindable public var session: TranslatorSession
     public var settingsStore: SettingsStore
     public var speechService: SpeechService
+    public var updateService: AppUpdateService? = nil
+    public var onScreenshotOCR: () -> Void = {}
     public var onOpenMainWindow: () -> Void
     public var onToggleDesktopWidget: () -> Void
     public var onOpenSettings: () -> Void
@@ -33,6 +35,9 @@ public struct MenuBarPopoverView: View {
     public var body: some View {
         VStack(spacing: 10) {
             headerBar
+            if let updateService {
+                UpdateBannerView(updateService: updateService, compact: true)
+            }
             inputCard
             controlRow
             outputCard
@@ -66,15 +71,20 @@ public struct MenuBarPopoverView: View {
     // MARK: - Header
 
     private var headerBar: some View {
-        HStack(spacing: 2) {
+        let ocrHelp = settingsStore.settings.screenshotOCREnabled
+            ? l10n.screenshotOCRShortcutTooltip(settingsStore.settings.screenshotOCRShortcut.displayString)
+            : l10n.screenshotOCRTooltip
+
+        return HStack(spacing: 2) {
             FerryLogo(height: 16, color: FerryTheme.accentText)
                 .padding(.trailing, 6)
 
             ModelMenu(settingsStore: settingsStore, onOpenSettings: onOpenSettings, compact: true)
-                .frame(maxWidth: 150, alignment: .leading)
+                .frame(maxWidth: 126, alignment: .leading)
 
-            Spacer(minLength: 6)
+            Spacer(minLength: 4)
 
+            headerButton("text.viewfinder", help: ocrHelp, action: onScreenshotOCR)
             headerButton("pip", help: l10n.miniWidgetTooltip, action: onToggleDesktopWidget)
             headerButton("arrow.up.left.and.arrow.down.right", help: l10n.openInMainWindowTooltip, action: onOpenMainWindow)
             headerButton("gearshape", help: l10n.settings, action: onOpenSettings)

@@ -21,6 +21,7 @@ public struct QuickPopupView: View {
     public var onTogglePin: (Bool) -> Void
     public var onOpenInMainWindow: () -> Void
     public var onOpenSettings: () -> Void
+    public var onOpenScreenRecordingSettings: () -> Void
     public var onClose: () -> Void
 
     public init(
@@ -31,6 +32,7 @@ public struct QuickPopupView: View {
         onTogglePin: @escaping (Bool) -> Void,
         onOpenInMainWindow: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
+        onOpenScreenRecordingSettings: @escaping () -> Void = {},
         onClose: @escaping () -> Void
     ) {
         self.session = session
@@ -40,6 +42,7 @@ public struct QuickPopupView: View {
         self.onTogglePin = onTogglePin
         self.onOpenInMainWindow = onOpenInMainWindow
         self.onOpenSettings = onOpenSettings
+        self.onOpenScreenRecordingSettings = onOpenScreenRecordingSettings
         self.onClose = onClose
     }
 
@@ -91,50 +94,70 @@ public struct QuickPopupView: View {
             .help(l10n.dragToMoveTooltip)
 
             // Collapsible source text preview + source speak button
-            HStack(alignment: .top, spacing: 6) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        uiState.showFullSource.toggle()
+            if !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                HStack(alignment: .top, spacing: 6) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            uiState.showFullSource.toggle()
+                        }
+                    } label: {
+                        HStack(alignment: .top, spacing: 6) {
+                            Text(session.sourceText)
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(uiState.showFullSource ? 8 : 2)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: uiState.showFullSource ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 2)
+                        }
                     }
-                } label: {
-                    HStack(alignment: .top, spacing: 6) {
-                        Text(session.sourceText)
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(uiState.showFullSource ? 8 : 2)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Image(systemName: uiState.showFullSource ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                            .padding(.top, 2)
-                    }
-                }
-                .buttonStyle(.plain)
+                    .buttonStyle(.plain)
 
-                SpeakButton(
-                    speechService: speechService,
-                    id: "popup-source",
-                    text: session.sourceText,
-                    help: l10n.speakSource,
-                    size: 22
-                )
+                    SpeakButton(
+                        speechService: speechService,
+                        id: "popup-source",
+                        text: session.sourceText,
+                        help: l10n.speakSource,
+                        size: 22
+                    )
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
 
             // Translation output
             if let error = session.errorMessage {
-                ErrorBannerView(
-                    message: error,
-                    showSettingsAction: error.contains("API Key") || error.contains("401"),
-                    onOpenSettings: onOpenSettings
-                )
+                if session.needsScreenRecordingPermission {
+                    ErrorBannerView(
+                        message: error,
+                        actionTitle: l10n.openScreenRecordingSettings,
+                        onAction: onOpenScreenRecordingSettings
+                    )
+                } else {
+                    ErrorBannerView(
+                        message: error,
+                        showSettingsAction: error.contains("API Key") || error.contains("401"),
+                        onOpenSettings: onOpenSettings
+                    )
+                }
+                Spacer(minLength: 0)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 4) {
-                        if session.translatedText.isEmpty && session.isTranslating {
+                        if session.isRecognizingOCR {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text(l10n.recognizingOCREllipsis)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 10)
+                        } else if session.translatedText.isEmpty && session.isTranslating {
                             HStack(spacing: 6) {
                                 ProgressView()
                                     .controlSize(.small)

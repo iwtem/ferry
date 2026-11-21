@@ -203,6 +203,16 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var appearance: AppearanceMode
     /// App interface language (defaults to following the macOS system language).
     public var language: AppLanguage
+    /// Enable the global shortcut for interactive screenshot OCR translation.
+    public var screenshotOCREnabled: Bool
+    /// Global shortcut for interactive screenshot OCR translation (defaults to ⌥⇧S).
+    public var screenshotOCRShortcut: HotkeyShortcut
+    /// Automatically check GitHub Releases for newer versions on launch and periodically.
+    public var autoCheckForUpdates: Bool
+    /// Automatically download verified release archives in the background when a new version is found.
+    public var autoDownloadUpdates: Bool
+    /// Optional version string the user chose to skip reminders for.
+    public var skippedUpdateVersion: String?
 
     public init(
         activeProvider: ProviderKind = .deepseek,
@@ -219,7 +229,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
         wordLookupEnabled: Bool = true,
         speech: SpeechSettings = SpeechSettings(),
         appearance: AppearanceMode = .system,
-        language: AppLanguage = .system
+        language: AppLanguage = .system,
+        screenshotOCREnabled: Bool = true,
+        screenshotOCRShortcut: HotkeyShortcut = .defaultScreenshotOCR,
+        autoCheckForUpdates: Bool = true,
+        autoDownloadUpdates: Bool = true,
+        skippedUpdateVersion: String? = nil
     ) {
         self.activeProvider = activeProvider
         self.profiles = profiles
@@ -232,11 +247,18 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.speech = speech
         self.appearance = appearance
         self.language = language
+        self.screenshotOCREnabled = screenshotOCREnabled
+        self.screenshotOCRShortcut = screenshotOCRShortcut
+        self.autoCheckForUpdates = autoCheckForUpdates
+        self.autoDownloadUpdates = autoDownloadUpdates
+        self.skippedUpdateVersion = skippedUpdateVersion
     }
 
     private enum CodingKeys: String, CodingKey {
         case activeProvider, profiles, defaultTargetLanguage, doubleCopyEnabled, doubleCopyIntervalMs
         case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, speech, appearance, language
+        case screenshotOCREnabled, screenshotOCRShortcut
+        case autoCheckForUpdates, autoDownloadUpdates, skippedUpdateVersion
     }
 
     // Every field falls back to its default, so settings files from older versions
@@ -255,6 +277,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
         speech = try c.decodeIfPresent(SpeechSettings.self, forKey: .speech) ?? defaults.speech
         appearance = try c.decodeIfPresent(AppearanceMode.self, forKey: .appearance) ?? defaults.appearance
         language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language
+        screenshotOCREnabled = try c.decodeIfPresent(Bool.self, forKey: .screenshotOCREnabled) ?? defaults.screenshotOCREnabled
+        screenshotOCRShortcut = try c.decodeIfPresent(HotkeyShortcut.self, forKey: .screenshotOCRShortcut) ?? defaults.screenshotOCRShortcut
+        autoCheckForUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoCheckForUpdates) ?? defaults.autoCheckForUpdates
+        autoDownloadUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoDownloadUpdates) ?? defaults.autoDownloadUpdates
+        skippedUpdateVersion = try c.decodeIfPresent(String.self, forKey: .skippedUpdateVersion) ?? defaults.skippedUpdateVersion
     }
 
     public var activeProfile: ProviderProfile {

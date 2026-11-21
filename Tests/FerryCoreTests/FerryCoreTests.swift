@@ -1,3 +1,5 @@
+import CoreGraphics
+import CoreText
 import Foundation
 import Testing
 @testable import FerryCore
@@ -218,6 +220,11 @@ struct FerryCoreTests {
         #expect(settings.wordLookupEnabled == true)
         #expect(settings.speech == SpeechSettings())
         #expect(settings.language == .system)
+        #expect(settings.screenshotOCREnabled == true)
+        #expect(settings.screenshotOCRShortcut == .defaultScreenshotOCR)
+        #expect(settings.autoCheckForUpdates == true)
+        #expect(settings.autoDownloadUpdates == true)
+        #expect(settings.skippedUpdateVersion == nil)
     }
 
     @Test("AppLanguage resolves explicit overrides and system preferred languages")
@@ -316,5 +323,159 @@ struct FerryCoreTests {
         #expect(LanguageDetection.speechLanguageCode(for: "Hello", hint: .ja, englishAccent: .us) == "ja-JP")
         #expect(LanguageDetection.dashScopeLanguageType(for: "en-GB") == "English")
         #expect(LanguageDetection.dashScopeLanguageType(for: "zh-CN") == "Chinese")
+    }
+
+    @Test("HotkeyShortcut formats keycaps and enforces primary modifiers")
+    func testHotkeyShortcut() throws {
+        let def = HotkeyShortcut.defaultScreenshotOCR
+        #expect(def.isValid)
+        #expect(def.displayTokens == ["⌥", "⇧", "S"])
+        #expect(def.displayString == "⌥⇧S")
+
+        let shiftOnly = HotkeyShortcut(keyCode: 1, modifiers: [.shift])
+        #expect(!shiftOnly.isValid)
+
+        let noMod = HotkeyShortcut(keyCode: 1, modifiers: [])
+        #expect(!noMod.isValid)
+
+        let unknownKey = HotkeyShortcut(keyCode: 999, modifiers: [.command])
+        #expect(!unknownKey.isValid)
+
+        let cmdShift = HotkeyShortcut(keyCode: 2, modifiers: [.command, .control, .shift])
+        #expect(cmdShift.isValid)
+        #expect(cmdShift.displayString == "⌃⇧⌘D")
+
+        let data = try JSONEncoder().encode(cmdShift)
+        let decoded = try JSONDecoder().decode(HotkeyShortcut.self, from: data)
+        #expect(decoded == cmdShift)
+    }
+
+    @Test("OCRTextFormatter sorts lines, joins wrapped paragraphs, de-hyphenates, and preserves breaks")
+    func testOCRTextFormatter() {
+        // Wrapped English paragraph with hyphenated word and out-of-order observations
+        let englishBlocks = [
+            OCRTextBlock(text: "rithm for fast", boundingBox: CGRect(x: 0.05, y: 0.68, width: 0.70, height: 0.06)),
+            OCRTextBlock(text: "We design a new algo-", boundingBox: CGRect(x: 0.05, y: 0.78, width: 0.78, height: 0.06)),
+            OCRTextBlock(text: "translation.", boundingBox: CGRect(x: 0.05, y: 0.58, width: 0.35, height: 0.06)),
+            // Large vertical gap -> new paragraph
+            OCRTextBlock(text: "Second paragraph starts here.", boundingBox: CGRect(x: 0.05, y: 0.35, width: 0.75, height: 0.06)),
+            // Bullet item -> new line
+            OCRTextBlock(text: "• Item one", boundingBox: CGRect(x: 0.05, y: 0.25, width: 0.40, height: 0.06))
+        ]
+        let formattedEnglish = OCRTextFormatter.format(englishBlocks)
+        #expect(formattedEnglish == "We design a new algorithm for fast translation.\nSecond paragraph starts here.\n• Item one")
+
+        // Wrapped CJK lines join without inserting spaces
+        let cjkBlocks = [
+            OCRTextBlock(text: "渡是一款轻量优雅的", boundingBox: CGRect(x: 0.1, y: 0.70, width: 0.75, height: 0.08)),
+            OCRTextBlock(text: "桌面大模型翻译工具。", boundingBox: CGRect(x: 0.1, y: 0.59, width: 0.72, height: 0.08))
+        ]
+        #expect(OCRTextFormatter.format(cjkBlocks) == "渡是一款轻量优雅的桌面大模型翻译工具。")
+
+        // Two fragments on the same horizontal visual line are sorted left-to-right
+        let sameLineBlocks = [
+            OCRTextBlock(text: "world", boundingBox: CGRect(x: 0.45, y: 0.50, width: 0.25, height: 0.08)),
+            OCRTextBlock(text: "Hello", boundingBox: CGRect(x: 0.10, y: 0.505, width: 0.25, height: 0.08))
+        ]
+        #expect(OCRTextFormatter.format(sameLineBlocks) == "Hello world")
+    }
+
+    @Test("SemanticVersion parses tags and compares versions including prereleases")
+    func testSemanticVersionComparison() throws {
+        let v010 = try #require(SemanticVersion(parsing: "0.1.0"))
+        let v020Beta = try #require(SemanticVersion(parsing: "v0.2.0-beta.1"))
+        let v020 = try #require(SemanticVersion(parsing: "v0.2.0"))
+        let v0100 = try #require(SemanticVersion(parsing: "0.10.0"))
+        let v10 = try #require(SemanticVersion(parsing: "1.0"))
+
+        #expect(v010 < v020Beta)
+        #expect(v020Beta < v020)
+        #expect(v020 < v0100)
+        #expect(v0100 < v10)
+        #expect(v10.description == "1.0.0")
+        #expect(v020Beta.description == "0.2.0-beta.1")
+        #expect(SemanticVersion(parsing: "not-a-version") == nil)
+    }
+
+    @Test("UpdateFeedParser extracts GitHub Release zip asset, checksum URL, and SHA-256")
+    func testUpdateFeedParser() throws {
+        let digestHex = String(repeating: "a1b2c3d4", count: 8)
+        let json = """
+        {
+          "tag_name": "v0.2.0",
+          "name": "渡 Ferry v0.2.0",
+          "body": "Added Screenshot OCR & Auto-Update\\n\\nSHA-256: `\(digestHex)`",
+          "html_url": "https://github.com/iwtem/ferry/releases/tag/v0.2.0",
+          "draft": false,
+          "prerelease": false,
+          "published_at": "2026-11-20T12:00:00Z",
+          "assets": [
+            {
+              "name": "Ferry-0.2.0.zip.sha256",
+              "browser_download_url": "https://github.com/iwtem/ferry/releases/download/v0.2.0/Ferry-0.2.0.zip.sha256",
+              "size": 84
+            },
+            {
+              "name": "Ferry-0.2.0.zip",
+              "browser_download_url": "https://github.com/iwtem/ferry/releases/download/v0.2.0/Ferry-0.2.0.zip",
+              "size": 4194304,
+              "digest": "sha256:\(digestHex.uppercased())"
+            }
+          ]
+        }
+        """
+
+        let info = try UpdateFeedParser.parseLatestRelease(from: Data(json.utf8))
+        #expect(info.version == SemanticVersion(major: 0, minor: 2, patch: 0))
+        #expect(info.assetFileName == "Ferry-0.2.0.zip")
+        #expect(info.assetSize == 4_194_304)
+        #expect(info.sha256 == digestHex)
+        #expect(info.checksumURL?.absoluteString.hasSuffix("Ferry-0.2.0.zip.sha256") == true)
+        #expect(info.publishedAt != nil)
+        #expect(UpdateFeedParser.latestReleaseEndpoint(for: "iwtem/ferry")?.absoluteString
+                == "https://api.github.com/repos/iwtem/ferry/releases/latest")
+        #expect(UpdateFeedParser.parseSHA256(from: "\(digestHex)  Ferry-0.2.0.zip") == digestHex)
+        #expect(UpdateFeedParser.parseSHA256(from: "too-short-abc") == nil)
+    }
+
+    @Test("OCRService recognizes rendered text on a CGImage via Apple Vision")
+    func testVisionOCRService() async throws {
+        let image = try #require(Self.renderTextImage("Hello Ferry OCR"))
+        let service = OCRService()
+        let text = try await service.recognizeText(from: image)
+        #expect(text.lowercased().contains("hello"))
+        #expect(text.lowercased().contains("ferry"))
+        #expect(text.lowercased().contains("ocr"))
+    }
+
+    private static func renderTextImage(_ text: String) -> CGImage? {
+        let width = 640
+        let height = 160
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+
+        let font = CTFontCreateWithName("Helvetica-Bold" as CFString, 48, nil)
+        let attrs: [NSAttributedString.Key: Any] = [
+            NSAttributedString.Key(kCTFontAttributeName as String): font,
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        ]
+        let attrString = NSAttributedString(string: text, attributes: attrs)
+        let line = CTLineCreateWithAttributedString(attrString)
+        context.textPosition = CGPoint(x: 40, y: 60)
+        CTLineDraw(line, context)
+        return context.makeImage()
     }
 }

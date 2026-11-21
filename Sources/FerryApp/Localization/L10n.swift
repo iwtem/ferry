@@ -59,9 +59,18 @@ struct L10n: Sendable {
     var menuCloseWindow: String { t(zh: "关闭窗口", en: "Close Window") }
 
     var statusQuickTranslate: String { t(zh: "菜单栏快译", en: "Quick Translate") }
+    var statusScreenshotOCR: String { t(zh: "截图翻译", en: "Screenshot OCR") }
     var statusOpenMainWindow: String { t(zh: "打开大窗口", en: "Open Main Window") }
     var statusHideMiniWidget: String { t(zh: "隐藏桌面悬浮小窗", en: "Hide Mini Widget") }
     var statusShowMiniWidget: String { t(zh: "打开桌面悬浮小窗", en: "Show Mini Widget") }
+    var statusCheckForUpdates: String { t(zh: "检查更新…", en: "Check for Updates…") }
+    func statusRestartToUpdate(_ version: String) -> String {
+        t(zh: "重启并更新到 v\(version)", en: "Restart to Update (v\(version))")
+    }
+
+    func statusScreenshotOCRWithShortcut(_ shortcut: String) -> String {
+        t(zh: "截图翻译 (\(shortcut))", en: "Screenshot OCR (\(shortcut))")
+    }
 
     // MARK: - Common Actions & Controls
 
@@ -97,6 +106,13 @@ struct L10n: Sendable {
 
     var translatingEllipsis: String { t(zh: "翻译中…", en: "Translating…") }
     var translatingLongEllipsis: String { t(zh: "正在翻译…", en: "Translating…") }
+    var recognizingOCREllipsis: String { t(zh: "正在识别截图文字…", en: "Recognizing text from screenshot…") }
+    var screenshotOCRTooltip: String { t(zh: "截图 OCR 翻译", en: "Screenshot OCR Translate") }
+    func screenshotOCRShortcutTooltip(_ shortcut: String) -> String {
+        t(zh: "截图 OCR 翻译 (\(shortcut))", en: "Screenshot OCR (\(shortcut))")
+    }
+    var openScreenRecordingSettings: String { t(zh: "打开屏幕录制设置", en: "Open Screen Recording Settings") }
+    var pasteAndTranslateTooltip: String { t(zh: "粘贴文字或截图并翻译", en: "Paste Text or Screenshot & Translate") }
     var generating: String { t(zh: "生成中", en: "Generating") }
     var translationPlaceholder: String { t(zh: "译文", en: "Translation") }
     var missingAPIKeyTitle: String { t(zh: "还没填 API Key", en: "API Key Required") }
@@ -127,7 +143,6 @@ struct L10n: Sendable {
 
     var swapMainTooltip: String { t(zh: "把译文放回左侧，反向翻译", en: "Swap translation into source") }
     var mainInputPlaceholder: String { t(zh: "输入或粘贴文本，⌘⏎ 翻译", en: "Type or paste text, ⌘⏎ to translate") }
-    var pasteAndTranslateTooltip: String { t(zh: "粘贴并翻译", en: "Paste & Translate") }
     var permissionNoticeText: String {
         t(zh: "划词翻译需要辅助功能权限", en: "Double ⌘C translation requires Accessibility permission")
     }
@@ -171,7 +186,7 @@ struct L10n: Sendable {
     func settingsPaneTitle(_ pane: SettingsPane) -> String {
         switch pane {
         case .models: return t(zh: "模型", en: "Models")
-        case .shortcut: return t(zh: "划词", en: "Shortcut")
+        case .shortcut: return t(zh: "快捷键", en: "Shortcuts")
         case .general: return t(zh: "通用", en: "General")
         }
     }
@@ -179,7 +194,7 @@ struct L10n: Sendable {
     func settingsPaneTagline(_ pane: SettingsPane) -> String {
         switch pane {
         case .models: return t(zh: "选一个服务商，填好 Key 就能翻译", en: "Pick a provider and add your API key to start")
-        case .shortcut: return t(zh: "选中文字，连按两次 ⌘C", en: "Select text anywhere and press ⌘C twice")
+        case .shortcut: return t(zh: "双击 ⌘C 划词，或快捷键截图 OCR 翻译", en: "Double ⌘C selection or screenshot OCR translation")
         case .general: return t(zh: "外观、语言、朗读与数据", en: "Appearance, language, speech & data")
         }
     }
@@ -229,9 +244,27 @@ struct L10n: Sendable {
 
     // MARK: - Settings: Shortcut
 
+    var doubleCopySectionLabel: String { t(zh: "划词翻译", en: "SELECTION TRANSLATION") }
     var doubleCopyToggle: String { t(zh: "双击 ⌘C 翻译", en: "Double ⌘C to Translate") }
     var doubleCopyInterval: String { t(zh: "按键间隔", en: "Double-Press Interval") }
     var doubleCopyIntervalCaption: String { t(zh: "按得慢就调大一点", en: "Increase if you press slowly") }
+
+    var screenshotOCRSectionLabel: String { t(zh: "截图 OCR 翻译", en: "SCREENSHOT OCR") }
+    var screenshotOCRToggle: String { t(zh: "截图翻译快捷键", en: "Screenshot OCR Shortcut") }
+    var screenshotOCRToggleCaption: String {
+        t(zh: "使用 macOS 原生 Vision 离线识别屏幕文字，零额外费用", en: "Offline Apple Vision OCR for images, PDFs & unselectable text")
+    }
+    var screenshotOCRHotkeyRow: String { t(zh: "全局快捷键", en: "Global Shortcut") }
+    var screenshotOCRHotkeyCaption: String {
+        t(zh: "点击按钮后按下组合键（需含 ⌘ / ⌥ / ⌃），按 Esc 取消", en: "Click and press a key combo with ⌘, ⌥ or ⌃ (Esc to cancel)")
+    }
+    var shortcutRecordingPrompt: String { t(zh: "请按下快捷键…", en: "Press shortcut…") }
+    var resetDefaultShortcutHelp: String { t(zh: "恢复默认 (⌥⇧S)", en: "Reset to Default (⌥⇧S)") }
+    var tryScreenshotOCR: String { t(zh: "立即截图测试", en: "Try Screenshot OCR") }
+    var shortcutConflictWarning: String {
+        t(zh: "该快捷键可能已被其他应用占用，请尝试更换组合键。", en: "Shortcut may be in use by another app. Try another key combination.")
+    }
+
     var systemPermissionsLabel: String { t(zh: "系统权限", en: "PERMISSIONS") }
     var accessibilityTitle: String { t(zh: "辅助功能", en: "Accessibility") }
     var accessibilityGrantedCaption: String {
@@ -239,6 +272,19 @@ struct L10n: Sendable {
     }
     var accessibilityDeniedCaption: String {
         t(zh: "授权后才能识别双击 ⌘C", en: "Grant access to detect double ⌘C globally")
+    }
+    var screenRecordingTitle: String { t(zh: "屏幕录制", en: "Screen Recording") }
+    var screenRecordingGrantedCaption: String {
+        t(zh: "可以框选屏幕任意区域并识别文字", en: "Ready to capture and recognize text from any screen region")
+    }
+    var screenRecordingDeniedCaption: String {
+        t(zh: "用于截取屏幕窗口内容进行本地 OCR 识别", en: "Required to capture app windows for on-device Vision OCR")
+    }
+    var screenRecordingTroubleshootTip: String {
+        t(
+            zh: "开启「屏幕录制」权限后，如果截图仍看不到窗口内容，请退出并重新打开 Ferry。",
+            en: "After enabling Screen Recording, quit and reopen Ferry if app windows still don't appear in captures."
+        )
     }
     var grantedPill: String { t(zh: "已授权", en: "Granted") }
     var notGrantedPill: String { t(zh: "未授权", en: "Not Granted") }
@@ -328,5 +374,39 @@ struct L10n: Sendable {
             zh: "\(count) 条 · 设置和 Key 只存在本机",
             en: "\(count) \(count == 1 ? "item" : "items") · Settings and keys stay on this Mac"
         )
+    }
+
+    // MARK: - Software Updates
+
+    var updatesSectionLabel: String { t(zh: "软件更新", en: "SOFTWARE UPDATES") }
+    var checkForUpdates: String { t(zh: "检查更新", en: "Check for Updates") }
+    var checkingForUpdates: String { t(zh: "检查中…", en: "Checking…") }
+    var downloadUpdate: String { t(zh: "下载更新", en: "Download") }
+    var restartToUpdate: String { t(zh: "重启更新", en: "Restart & Update") }
+    var installingUpdate: String { t(zh: "正在安装…", en: "Installing…") }
+    var viewReleaseNotes: String { t(zh: "更新日志", en: "Release Notes") }
+    var skipThisVersion: String { t(zh: "跳过此版本", en: "Skip") }
+    var autoCheckUpdates: String { t(zh: "自动检查更新", en: "Automatically Check for Updates") }
+    var autoCheckUpdatesCaption: String {
+        t(zh: "启动时与后台定期检查 GitHub Releases 新版本", en: "Check GitHub Releases on launch and periodically")
+    }
+    var autoDownloadUpdates: String { t(zh: "自动后台下载", en: "Download Updates Automatically") }
+    var autoDownloadUpdatesCaption: String {
+        t(zh: "发现新版本时静默下载并校验，确认后一键重启生效", en: "Silently download and verify updates for one-click restart")
+    }
+    func currentVersionLabel(_ version: String) -> String {
+        t(zh: "当前版本 v\(version)", en: "Current Version v\(version)")
+    }
+    func upToDateMessage(_ version: String) -> String {
+        t(zh: "已是最新版本 (v\(version))", en: "You're up to date (v\(version))")
+    }
+    func updateAvailableTitle(_ version: String) -> String {
+        t(zh: "发现新版本 v\(version)", en: "Version v\(version) available")
+    }
+    func updateReadyTitle(_ version: String) -> String {
+        t(zh: "新版本 v\(version) 已就绪", en: "v\(version) ready to install")
+    }
+    func downloadingUpdateProgress(_ version: String, percent: Int) -> String {
+        t(zh: "正在下载 v\(version) (\(percent)%)", en: "Downloading v\(version) (\(percent)%)")
     }
 }

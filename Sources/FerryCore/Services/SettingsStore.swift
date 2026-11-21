@@ -1,6 +1,10 @@
 import Foundation
 import Observation
 
+public extension Notification.Name {
+    static let ferryHotkeySettingsDidChange = Notification.Name("Ferry.HotkeySettingsDidChange")
+}
+
 @MainActor
 @Observable
 public final class SettingsStore {
@@ -9,6 +13,10 @@ public final class SettingsStore {
             if oldValue.language != settings.language {
                 FerryLocalization.languageSetting = settings.language
                 NotificationCenter.default.post(name: .ferryLanguageDidChange, object: nil)
+            }
+            if oldValue.screenshotOCREnabled != settings.screenshotOCREnabled
+                || oldValue.screenshotOCRShortcut != settings.screenshotOCRShortcut {
+                NotificationCenter.default.post(name: .ferryHotkeySettingsDidChange, object: nil)
             }
             saveSettings()
         }

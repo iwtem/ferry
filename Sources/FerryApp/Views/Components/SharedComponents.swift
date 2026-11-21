@@ -265,14 +265,20 @@ public struct CopyResultButton: View {
 
 public struct ErrorBannerView: View {
     public let message: String
-    public let showSettingsAction: Bool
-    public let onOpenSettings: () -> Void
+    public let actionTitle: String?
+    public let onAction: (() -> Void)?
     @Environment(\.appLanguage) private var appLanguage
 
     public init(message: String, showSettingsAction: Bool = false, onOpenSettings: @escaping () -> Void) {
         self.message = message
-        self.showSettingsAction = showSettingsAction
-        self.onOpenSettings = onOpenSettings
+        self.actionTitle = showSettingsAction ? "" : nil
+        self.onAction = showSettingsAction ? onOpenSettings : nil
+    }
+
+    public init(message: String, actionTitle: String?, onAction: (() -> Void)?) {
+        self.message = message
+        self.actionTitle = actionTitle
+        self.onAction = onAction
     }
 
     public var body: some View {
@@ -288,9 +294,9 @@ public struct ErrorBannerView: View {
                     .foregroundStyle(.primary)
                     .textSelection(.enabled)
             }
-            if showSettingsAction {
-                Button(l10n.openSettingsForAPIKey) {
-                    onOpenSettings()
+            if let actionTitle, let onAction {
+                Button(actionTitle.isEmpty ? l10n.openSettingsForAPIKey : actionTitle) {
+                    onAction()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -393,6 +399,100 @@ public struct SpeechErrorBanner: View {
             .padding(.vertical, 6)
             .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .transition(.opacity.combined(with: .move(edge: .bottom)))
+        }
+    }
+}
+
+/// Compact glass notification banner shown in Popover / Main Window when a newer release is available or ready.
+public struct UpdateBannerView: View {
+    public let updateService: AppUpdateService
+    public var compact: Bool = false
+    @Environment(\.appLanguage) private var appLanguage
+
+    public init(updateService: AppUpdateService, compact: Bool = false) {
+        self.updateService = updateService
+        self.compact = compact
+    }
+
+    public var body: some View {
+        let l10n = L10n(appLanguage)
+        if updateService.shouldShowUpdateBanner {
+            HStack(spacing: 8) {
+                Image(systemName: iconName)
+                    .font(.system(size: compact ? 11.5 : 12.5, weight: .semibold))
+                    .foregroundStyle(FerryTheme.accentText)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(statusTitle(l10n))
+                        .font(.system(size: compact ? 11.5 : 12, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    if case .downloading(_, let progress) = updateService.state {
+                        ProgressView(value: progress)
+                            .progressViewStyle(.linear)
+                            .controlSize(.mini)
+                    }
+                }
+
+                Spacer(minLength: 4)
+
+                switch updateService.state {
+                case .available:
+                    Button(l10n.downloadUpdate) {
+                        updateService.downloadUpdate()
+                    }
+                    .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: compact ? 22 : 24))
+
+                case .readyToInstall:
+                    Button(l10n.restartToUpdate) {
+                        updateService.installAndRelaunch()
+                    }
+                    .buttonStyle(GlassButtonStyle(kind: .glow, hue: .teal, height: compact ? 22 : 24))
+
+                case .downloading:
+                    ProgressView()
+                        .controlSize(.mini)
+
+                default:
+                    EmptyView()
+                }
+
+                Button {
+                    updateService.dismissBanner()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(3)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, compact ? 9 : 12)
+            .padding(.vertical, compact ? 6 : 7)
+            .glassSurface(cornerRadius: compact ? 10 : 12, fill: FerryTheme.accent.opacity(0.11))
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    private var iconName: String {
+        switch updateService.state {
+        case .readyToInstall: return "arrow.clockwise.circle.fill"
+        case .downloading: return "arrow.down.circle.fill"
+        default: return "sparkles"
+        }
+    }
+
+    private func statusTitle(_ l10n: L10n) -> String {
+        switch updateService.state {
+        case .available(let release):
+            return l10n.updateAvailableTitle(release.version.description)
+        case .downloading(let release, let progress):
+            return l10n.downloadingUpdateProgress(release.version.description, percent: Int((progress * 100).rounded()))
+        case .readyToInstall(let release, _):
+            return l10n.updateReadyTitle(release.version.description)
+        default:
+            return ""
         }
     }
 }
