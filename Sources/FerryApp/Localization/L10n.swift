@@ -369,6 +369,10 @@ struct L10n: Sendable {
     var wordLookupCaption: String {
         t(zh: "查单词时显示音标、词性和例句", en: "Show phonetics, part of speech & example for words")
     }
+    var pdfLineBreakFix: String { t(zh: "PDF / 论文断行修复", en: "PDF Line-Break Cleanup") }
+    var pdfLineBreakFixCaption: String {
+        t(zh: "自动合并复制来的多余硬回车与连字符断词 (algo-\\nrithm)", en: "Auto-join wrapped PDF lines and de-hyphenate split words")
+    }
 
     var speechSectionLabel: String { t(zh: "朗读", en: "SPEECH") }
 

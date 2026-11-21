@@ -218,6 +218,7 @@ struct FerryCoreTests {
         #expect(settings.doubleCopyIntervalMs == 500)
         #expect(settings.profiles[.bailian]?.model == "qwen-plus")
         #expect(settings.wordLookupEnabled == true)
+        #expect(settings.pdfLineBreakFixEnabled == true)
         #expect(settings.speech == SpeechSettings())
         #expect(settings.language == .system)
         #expect(settings.screenshotOCREnabled == true)
@@ -456,6 +457,32 @@ struct FerryCoreTests {
 
         #expect(UpdatePushParser.parseSSELine("data: v0.2.2") == .releaseAvailable(versionHint: SemanticVersion(major: 0, minor: 2, patch: 2)))
         #expect(UpdatePushParser.parseSSELine("data: check-now") == .releaseAvailable(versionHint: nil))
+    }
+
+    @Test("TextPreprocessor cleans wrapped PDF line breaks and hyphenation while preserving structure")
+    func testPDFLineBreakPreprocessor() {
+        let englishPDF = """
+        We introduce a novel algo-
+        rithm for efficient trans-
+        former inference on edge devices.
+
+        Key findings:
+        • Faster decoding with GPT-
+        4 scale models.
+        • Lower memory footprint.
+
+        ```swift
+        let a = 1
+        let b = 2
+        ```
+        """
+        let cleanedEnglish = TextPreprocessor.cleanPDFLineBreaks(englishPDF)
+        #expect(cleanedEnglish.contains("We introduce a novel algorithm for efficient transformer inference on edge devices."))
+        #expect(cleanedEnglish.contains("Key findings:\n• Faster decoding with GPT-4 scale models.\n• Lower memory footprint."))
+        #expect(cleanedEnglish.contains("```swift\nlet a = 1\nlet b = 2\n```"))
+
+        let cjkPDF = "在本文中，我们提出了一种高效的\n端侧大语言模型推理框架，能够显著\n降低显存占用。"
+        #expect(TextPreprocessor.cleanPDFLineBreaks(cjkPDF) == "在本文中，我们提出了一种高效的端侧大语言模型推理框架，能够显著降低显存占用。")
     }
 
     @Test("Writing modes preserve source language on .auto, skip word lookup, and build dedicated prompts")

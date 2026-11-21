@@ -36,10 +36,15 @@ public final class TranslatorSession {
 
     public func translate(text overrideText: String? = nil) {
         if let overrideText {
-            sourceText = overrideText
+            sourceText = settingsStore.settings.pdfLineBreakFixEnabled
+                ? TextPreprocessor.cleanPDFLineBreaks(overrideText)
+                : overrideText
         }
 
-        let trimmed = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawTrimmed = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = settingsStore.settings.pdfLineBreakFixEnabled
+            ? TextPreprocessor.cleanPDFLineBreaks(rawTrimmed)
+            : rawTrimmed
         guard !trimmed.isEmpty else {
             errorMessage = nil
             translatedText = ""

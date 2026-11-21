@@ -198,6 +198,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var temperature: Double
     /// Show a short dictionary entry when a single word or short term is translated.
     public var wordLookupEnabled: Bool
+    /// Automatically merge wrapped PDF line breaks and de-hyphenate split words before translating.
+    public var pdfLineBreakFixEnabled: Bool
     /// Speech / pronunciation configuration (offline macOS voice or cloud TTS).
     public var speech: SpeechSettings
     public var appearance: AppearanceMode
@@ -233,6 +235,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         desktopWidgetAlwaysOnTop: Bool = true,
         temperature: Double = 0.2,
         wordLookupEnabled: Bool = true,
+        pdfLineBreakFixEnabled: Bool = true,
         speech: SpeechSettings = SpeechSettings(),
         appearance: AppearanceMode = .system,
         language: AppLanguage = .system,
@@ -253,6 +256,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.desktopWidgetAlwaysOnTop = desktopWidgetAlwaysOnTop
         self.temperature = temperature
         self.wordLookupEnabled = wordLookupEnabled
+        self.pdfLineBreakFixEnabled = pdfLineBreakFixEnabled
         self.speech = speech
         self.appearance = appearance
         self.language = language
@@ -268,7 +272,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case activeProvider, profiles, defaultTargetLanguage, doubleCopyEnabled, doubleCopyIntervalMs
-        case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, speech, appearance, language
+        case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, pdfLineBreakFixEnabled, speech, appearance, language
         case screenshotOCREnabled, screenshotOCRShortcut
         case selectionShortcutEnabled, selectionShortcut
         case autoCheckForUpdates, autoDownloadUpdates, realtimeUpdatePushEnabled, skippedUpdateVersion
@@ -287,6 +291,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         desktopWidgetAlwaysOnTop = try c.decodeIfPresent(Bool.self, forKey: .desktopWidgetAlwaysOnTop) ?? defaults.desktopWidgetAlwaysOnTop
         temperature = try c.decodeIfPresent(Double.self, forKey: .temperature) ?? defaults.temperature
         wordLookupEnabled = try c.decodeIfPresent(Bool.self, forKey: .wordLookupEnabled) ?? defaults.wordLookupEnabled
+        pdfLineBreakFixEnabled = try c.decodeIfPresent(Bool.self, forKey: .pdfLineBreakFixEnabled) ?? defaults.pdfLineBreakFixEnabled
         speech = try c.decodeIfPresent(SpeechSettings.self, forKey: .speech) ?? defaults.speech
         appearance = try c.decodeIfPresent(AppearanceMode.self, forKey: .appearance) ?? defaults.appearance
         language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language

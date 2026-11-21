@@ -732,10 +732,16 @@ public struct SettingsView: View {
                             title: { $0.displayName(in: lang) }
                         )
                     }
-                    GlassRow(title: l10n.wordLookup, caption: l10n.wordLookupCaption, divider: false) {
+                    GlassRow(title: l10n.wordLookup, caption: l10n.wordLookupCaption) {
                         GlassToggle(isOn: Binding(
                             get: { settingsStore.settings.wordLookupEnabled },
                             set: { settingsStore.settings.wordLookupEnabled = $0 }
+                        ))
+                    }
+                    GlassRow(title: l10n.pdfLineBreakFix, caption: l10n.pdfLineBreakFixCaption, divider: false) {
+                        GlassToggle(isOn: Binding(
+                            get: { settingsStore.settings.pdfLineBreakFixEnabled },
+                            set: { settingsStore.settings.pdfLineBreakFixEnabled = $0 }
                         ))
                     }
                 }
