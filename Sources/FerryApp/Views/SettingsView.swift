@@ -439,6 +439,10 @@ public struct SettingsView: View {
     // MARK: - Shortcut
 
     private var shortcutPane: some View {
+        let quickEnabled = settingsStore.settings.quickTranslateShortcutEnabled
+        let quickShortcut = settingsStore.settings.quickTranslateShortcut
+        let mainEnabled = settingsStore.settings.mainWindowShortcutEnabled
+        let mainShortcut = settingsStore.settings.mainWindowShortcut
         let doubleCopyEnabled = settingsStore.settings.doubleCopyEnabled
         let selectionEnabled = settingsStore.settings.selectionShortcutEnabled
         let selectionShortcut = settingsStore.settings.selectionShortcut
@@ -459,6 +463,89 @@ public struct SettingsView: View {
                 }
             )
             .background(WindowDragArea())
+
+            VStack(alignment: .leading, spacing: 8) {
+                GlassLabel(l10n.quickLaunchSectionLabel)
+                GlassCard {
+                    GlassRow(title: l10n.quickTranslateHotkeyTitle, caption: l10n.quickTranslateHotkeyCaption) {
+                        HStack(spacing: 8) {
+                            HStack(spacing: 6) {
+                                if quickShortcut != .defaultQuickTranslate {
+                                    GlassIconButton(icon: .rotateCcw, help: l10n.resetDefaultQuickTranslateShortcutHelp) {
+                                        settingsStore.settings.quickTranslateShortcut = .defaultQuickTranslate
+                                    }
+                                }
+                                ShortcutRecorderButton(
+                                    shortcut: Binding(
+                                        get: { settingsStore.settings.quickTranslateShortcut },
+                                        set: { settingsStore.settings.quickTranslateShortcut = $0 }
+                                    ),
+                                    onRecordingChange: { recording in
+                                        hotkeyService.setPaused(recording)
+                                    }
+                                )
+                            }
+                            .disabled(!quickEnabled)
+                            .opacity(quickEnabled ? 1 : 0.4)
+
+                            GlassToggle(isOn: Binding(
+                                get: { settingsStore.settings.quickTranslateShortcutEnabled },
+                                set: { newValue in
+                                    withAnimation(FerryMotion.animation(FerryMotion.quick)) {
+                                        settingsStore.settings.quickTranslateShortcutEnabled = newValue
+                                    }
+                                }
+                            ))
+                        }
+                    }
+
+                    GlassRow(title: l10n.mainWindowHotkeyTitle, caption: l10n.mainWindowHotkeyCaption, divider: false) {
+                        HStack(spacing: 8) {
+                            HStack(spacing: 6) {
+                                if mainShortcut != .defaultMainWindow {
+                                    GlassIconButton(icon: .rotateCcw, help: l10n.resetDefaultMainWindowShortcutHelp) {
+                                        settingsStore.settings.mainWindowShortcut = .defaultMainWindow
+                                    }
+                                }
+                                ShortcutRecorderButton(
+                                    shortcut: Binding(
+                                        get: { settingsStore.settings.mainWindowShortcut },
+                                        set: { settingsStore.settings.mainWindowShortcut = $0 }
+                                    ),
+                                    onRecordingChange: { recording in
+                                        hotkeyService.setPaused(recording)
+                                    }
+                                )
+                            }
+                            .disabled(!mainEnabled)
+                            .opacity(mainEnabled ? 1 : 0.4)
+
+                            GlassToggle(isOn: Binding(
+                                get: { settingsStore.settings.mainWindowShortcutEnabled },
+                                set: { newValue in
+                                    withAnimation(FerryMotion.animation(FerryMotion.quick)) {
+                                        settingsStore.settings.mainWindowShortcutEnabled = newValue
+                                    }
+                                }
+                            ))
+                        }
+                    }
+
+                    if (quickEnabled && hotkeyService.hasConflict(for: .quickTranslate))
+                        || (mainEnabled && hotkeyService.hasConflict(for: .mainWindow)) {
+                        let isDuplicate = (quickEnabled && hotkeyService.duplicateActions.contains(.quickTranslate))
+                            || (mainEnabled && hotkeyService.duplicateActions.contains(.mainWindow))
+                        Rectangle().fill(Stage.hairline).frame(height: 1)
+                        StatusLine(
+                            text: isDuplicate ? l10n.shortcutDuplicateWarning : l10n.shortcutConflictWarning,
+                            success: false
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 GlassLabel(l10n.doubleCopySectionLabel)
@@ -534,12 +621,17 @@ public struct SettingsView: View {
                         .opacity(selectionEnabled ? 1 : 0.4)
                     }
 
-                    if hotkeyService.selectionRegistrationFailed && selectionEnabled {
+                    if selectionEnabled && hotkeyService.hasConflict(for: .selectionTranslate) {
                         Rectangle().fill(Stage.hairline).frame(height: 1)
-                        StatusLine(text: l10n.shortcutConflictWarning, success: false)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        StatusLine(
+                            text: hotkeyService.duplicateActions.contains(.selectionTranslate)
+                                ? l10n.shortcutDuplicateWarning
+                                : l10n.shortcutConflictWarning,
+                            success: false
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
@@ -591,12 +683,17 @@ public struct SettingsView: View {
                         .buttonStyle(GlassButtonStyle(kind: .glow, hue: .coral))
                     }
 
-                    if hotkeyService.screenshotRegistrationFailed && screenshotEnabled {
+                    if screenshotEnabled && hotkeyService.hasConflict(for: .screenshotOCR) {
                         Rectangle().fill(Stage.hairline).frame(height: 1)
-                        StatusLine(text: l10n.shortcutConflictWarning, success: false)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        StatusLine(
+                            text: hotkeyService.duplicateActions.contains(.screenshotOCR)
+                                ? l10n.shortcutDuplicateWarning
+                                : l10n.shortcutConflictWarning,
+                            success: false
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }

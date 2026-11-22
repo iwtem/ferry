@@ -222,6 +222,10 @@ struct FerryCoreTests {
         #expect(settings.translationCacheEnabled == true)
         #expect(settings.speech == SpeechSettings())
         #expect(settings.language == .system)
+        #expect(settings.quickTranslateShortcutEnabled == true)
+        #expect(settings.quickTranslateShortcut == .defaultQuickTranslate)
+        #expect(settings.mainWindowShortcutEnabled == true)
+        #expect(settings.mainWindowShortcut == .defaultMainWindow)
         #expect(settings.screenshotOCREnabled == true)
         #expect(settings.screenshotOCRShortcut == .defaultScreenshotOCR)
         #expect(settings.selectionShortcutEnabled == true)
@@ -355,6 +359,27 @@ struct FerryCoreTests {
         let data = try JSONEncoder().encode(cmdShift)
         let decoded = try JSONDecoder().decode(HotkeyShortcut.self, from: data)
         #expect(decoded == cmdShift)
+
+        // Default global hotkeys are all valid, distinct, and have unique Carbon IDs
+        #expect(HotkeyShortcut.defaultQuickTranslate.displayString == "⌥Space")
+        #expect(HotkeyShortcut.defaultMainWindow.displayString == "⌥⇧F")
+        #expect(HotkeyShortcut.defaultSelectionTranslate.displayString == "⌥⇧R")
+        #expect(HotkeyShortcut.defaultScreenshotOCR.displayString == "⌥⇧S")
+
+        let allActions = GlobalHotkeyAction.allCases
+        #expect(Set(allActions.map(\.carbonID)).count == allActions.count)
+        #expect(Set(allActions.map(\.defaultShortcut)).count == allActions.count)
+
+        var settings = AppSettings()
+        #expect(settings.conflictingHotkeyActions().isEmpty)
+
+        // Duplicate enabled shortcuts are flagged for both actions
+        settings.mainWindowShortcut = .defaultQuickTranslate
+        #expect(settings.conflictingHotkeyActions() == [.quickTranslate, .mainWindow])
+
+        // Disabling one side clears the conflict
+        settings.mainWindowShortcutEnabled = false
+        #expect(settings.conflictingHotkeyActions().isEmpty)
     }
 
     @Test("OCRTextFormatter sorts lines, joins wrapped paragraphs, de-hyphenates, and preserves breaks")

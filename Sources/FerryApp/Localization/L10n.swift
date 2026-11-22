@@ -71,8 +71,14 @@ struct L10n: Sendable {
         t(zh: "重启并更新到 v\(version)", en: "Restart to Update (v\(version))")
     }
 
+    func statusQuickTranslateWithShortcut(_ shortcut: String) -> String {
+        t(zh: "菜单栏快译 (\(shortcut))", en: "Quick Translate (\(shortcut))")
+    }
     func statusScreenshotOCRWithShortcut(_ shortcut: String) -> String {
         t(zh: "截图翻译 (\(shortcut))", en: "Screenshot OCR (\(shortcut))")
+    }
+    func statusOpenMainWindowWithShortcut(_ shortcut: String) -> String {
+        t(zh: "打开大窗口 (\(shortcut))", en: "Open Main Window (\(shortcut))")
     }
 
     // MARK: - Common Actions & Controls
@@ -278,7 +284,7 @@ struct L10n: Sendable {
     func settingsPaneTagline(_ pane: SettingsPane) -> String {
         switch pane {
         case .models: return t(zh: "选一个服务商，填好 Key 就能翻译", en: "Pick a provider and add your API key to start")
-        case .shortcut: return t(zh: "双击 ⌘C 划词，或快捷键截图 OCR 翻译", en: "Double ⌘C selection or screenshot OCR translation")
+        case .shortcut: return t(zh: "全局呼出窗口、双击 ⌘C 划词与截图 OCR 翻译", en: "Global window hotkeys, double ⌘C selection & screenshot OCR")
         case .general: return t(zh: "外观、语言、朗读与数据", en: "Appearance, language, speech & data")
         }
     }
@@ -327,6 +333,21 @@ struct L10n: Sendable {
     }
 
     // MARK: - Settings: Shortcut
+
+    var quickLaunchSectionLabel: String { t(zh: "窗口快捷呼出", en: "QUICK LAUNCH") }
+    var quickTranslateHotkeyTitle: String { t(zh: "菜单栏快译", en: "Quick Translate") }
+    var quickTranslateHotkeyCaption: String {
+        t(zh: "在任意应用中一键呼出或收起菜单栏快译弹窗", en: "Toggle the menu bar quick-translate panel from any app")
+    }
+    var resetDefaultQuickTranslateShortcutHelp: String { t(zh: "恢复默认 (⌥Space)", en: "Reset to Default (⌥Space)") }
+    var mainWindowHotkeyTitle: String { t(zh: "独立大窗口", en: "Main Window") }
+    var mainWindowHotkeyCaption: String {
+        t(zh: "一键打开或隐藏双栏大窗口并聚焦输入框", en: "Show or hide the full dual-pane window and focus input")
+    }
+    var resetDefaultMainWindowShortcutHelp: String { t(zh: "恢复默认 (⌥⇧F)", en: "Reset to Default (⌥⇧F)") }
+    var shortcutDuplicateWarning: String {
+        t(zh: "该快捷键与 Ferry 内的另一项快捷键重复，请修改其中一项。", en: "This shortcut duplicates another Ferry shortcut. Please choose another combo.")
+    }
 
     var doubleCopySectionLabel: String { t(zh: "划词翻译", en: "SELECTION TRANSLATION") }
     var doubleCopyToggle: String { t(zh: "双击 ⌘C 翻译", en: "Double ⌘C to Translate") }

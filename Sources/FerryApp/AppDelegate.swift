@@ -199,12 +199,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showStatusContextMenu(from button: NSStatusBarButton) {
         let l10n = L10n(settingsStore.resolvedLanguage)
         let menu = NSMenu()
-        menu.addItem(withTitle: l10n.statusQuickTranslate, action: #selector(openPopoverAction), keyEquivalent: "")
+        let quickTitle = settingsStore.settings.quickTranslateShortcutEnabled
+            ? l10n.statusQuickTranslateWithShortcut(settingsStore.settings.quickTranslateShortcut.displayString)
+            : l10n.statusQuickTranslate
+        menu.addItem(withTitle: quickTitle, action: #selector(openPopoverAction), keyEquivalent: "")
         let ocrTitle = settingsStore.settings.screenshotOCREnabled
             ? l10n.statusScreenshotOCRWithShortcut(settingsStore.settings.screenshotOCRShortcut.displayString)
             : l10n.statusScreenshotOCR
         menu.addItem(withTitle: ocrTitle, action: #selector(screenshotOCRAction), keyEquivalent: "")
-        menu.addItem(withTitle: l10n.statusOpenMainWindow, action: #selector(openMainWindowAction), keyEquivalent: "")
+        let mainTitle = settingsStore.settings.mainWindowShortcutEnabled
+            ? l10n.statusOpenMainWindowWithShortcut(settingsStore.settings.mainWindowShortcut.displayString)
+            : l10n.statusOpenMainWindow
+        menu.addItem(withTitle: mainTitle, action: #selector(openMainWindowAction), keyEquivalent: "")
         menu.addItem(
             withTitle: desktopWidgetController.isVisible ? l10n.statusHideMiniWidget : l10n.statusShowMiniWidget,
             action: #selector(toggleDesktopWidgetAction),
@@ -233,9 +239,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.menu = nil
     }
 
-    private func togglePopover() {
+    private func togglePopover(ignoreDebounce: Bool = false) {
         guard let button = statusItem?.button else { return }
-        menuBarPanel.toggle(below: button) { self.makeMenuBarContent() }
+        menuBarPanel.toggle(below: button, ignoreDebounce: ignoreDebounce) { self.makeMenuBarContent() }
     }
 
     private func openPopover() {
@@ -288,6 +294,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupGlobalHotkeys() {
+        hotkeyService.onQuickTranslate = { [weak self] in
+            self?.togglePopover(ignoreDebounce: true)
+        }
+        hotkeyService.onMainWindow = { [weak self] in
+            self?.toggleMainWindow()
+        }
         hotkeyService.onScreenshotOCR = { [weak self] in
             self?.triggerScreenshotOCR(destination: .quickPopup)
         }
@@ -539,12 +551,24 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Standalone Large Window & Settings Window
 
+    private func toggleMainWindow() {
+        if menuBarPanel.isVisible {
+            menuBarPanel.hide()
+        }
+        if let existing = mainWindow, existing.isVisible, existing.isKeyWindow, NSApp.isActive {
+            existing.orderOut(nil)
+            return
+        }
+        openMainWindow()
+    }
+
     private func openMainWindow() {
         copyMonitor.refreshPermissionStatus()
 
         if let existing = mainWindow {
             existing.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            mainWindowUIState.focusTrigger += 1
             return
         }
 

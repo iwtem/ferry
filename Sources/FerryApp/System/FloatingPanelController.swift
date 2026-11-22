@@ -183,11 +183,11 @@ public final class MenuBarPanelController {
 
     public init() {}
 
-    /// Click on the menu bar icon: close if open (or just closed by this click), else open.
-    public func toggle(below button: NSStatusBarButton, content: () -> AnyView) {
+    /// Click on the menu bar icon (or global shortcut): close if open, else open.
+    public func toggle(below button: NSStatusBarButton, ignoreDebounce: Bool = false, content: () -> AnyView) {
         if isVisible {
             hide()
-        } else if Date().timeIntervalSince(lastHide) > 0.3 {
+        } else if ignoreDebounce || Date().timeIntervalSince(lastHide) > 0.3 {
             show(below: button, content: content())
         }
     }

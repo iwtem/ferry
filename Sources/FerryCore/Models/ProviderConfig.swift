@@ -224,6 +224,14 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var appearance: AppearanceMode
     /// App interface language (defaults to following the macOS system language).
     public var language: AppLanguage
+    /// Enable the global shortcut for toggling the menu bar quick-translate panel.
+    public var quickTranslateShortcutEnabled: Bool
+    /// Global shortcut for toggling the menu bar quick-translate panel (defaults to ⌥Space).
+    public var quickTranslateShortcut: HotkeyShortcut
+    /// Enable the global shortcut for opening/toggling the standalone main window.
+    public var mainWindowShortcutEnabled: Bool
+    /// Global shortcut for opening/toggling the standalone main window (defaults to ⌥⇧F).
+    public var mainWindowShortcut: HotkeyShortcut
     /// Enable the global shortcut for interactive screenshot OCR translation.
     public var screenshotOCREnabled: Bool
     /// Global shortcut for interactive screenshot OCR translation (defaults to ⌥⇧S).
@@ -261,6 +269,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         speech: SpeechSettings = SpeechSettings(),
         appearance: AppearanceMode = .system,
         language: AppLanguage = .system,
+        quickTranslateShortcutEnabled: Bool = true,
+        quickTranslateShortcut: HotkeyShortcut = .defaultQuickTranslate,
+        mainWindowShortcutEnabled: Bool = true,
+        mainWindowShortcut: HotkeyShortcut = .defaultMainWindow,
         screenshotOCREnabled: Bool = true,
         screenshotOCRShortcut: HotkeyShortcut = .defaultScreenshotOCR,
         selectionShortcutEnabled: Bool = true,
@@ -284,6 +296,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.speech = speech
         self.appearance = appearance
         self.language = language
+        self.quickTranslateShortcutEnabled = quickTranslateShortcutEnabled
+        self.quickTranslateShortcut = quickTranslateShortcut
+        self.mainWindowShortcutEnabled = mainWindowShortcutEnabled
+        self.mainWindowShortcut = mainWindowShortcut
         self.screenshotOCREnabled = screenshotOCREnabled
         self.screenshotOCRShortcut = screenshotOCRShortcut
         self.selectionShortcutEnabled = selectionShortcutEnabled
@@ -299,6 +315,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case activeProvider, profiles, defaultTargetLanguage, doubleCopyEnabled, doubleCopyIntervalMs
         case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, pdfLineBreakFixEnabled, translationCacheEnabled
         case speech, appearance, language
+        case quickTranslateShortcutEnabled, quickTranslateShortcut
+        case mainWindowShortcutEnabled, mainWindowShortcut
         case screenshotOCREnabled, screenshotOCRShortcut
         case selectionShortcutEnabled, selectionShortcut
         case autoCheckForUpdates, autoDownloadUpdates, realtimeUpdatePushEnabled, secondaryModel, skippedUpdateVersion
@@ -322,6 +340,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         speech = try c.decodeIfPresent(SpeechSettings.self, forKey: .speech) ?? defaults.speech
         appearance = try c.decodeIfPresent(AppearanceMode.self, forKey: .appearance) ?? defaults.appearance
         language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language
+        quickTranslateShortcutEnabled = try c.decodeIfPresent(Bool.self, forKey: .quickTranslateShortcutEnabled) ?? defaults.quickTranslateShortcutEnabled
+        quickTranslateShortcut = try c.decodeIfPresent(HotkeyShortcut.self, forKey: .quickTranslateShortcut) ?? defaults.quickTranslateShortcut
+        mainWindowShortcutEnabled = try c.decodeIfPresent(Bool.self, forKey: .mainWindowShortcutEnabled) ?? defaults.mainWindowShortcutEnabled
+        mainWindowShortcut = try c.decodeIfPresent(HotkeyShortcut.self, forKey: .mainWindowShortcut) ?? defaults.mainWindowShortcut
         screenshotOCREnabled = try c.decodeIfPresent(Bool.self, forKey: .screenshotOCREnabled) ?? defaults.screenshotOCREnabled
         screenshotOCRShortcut = try c.decodeIfPresent(HotkeyShortcut.self, forKey: .screenshotOCRShortcut) ?? defaults.screenshotOCRShortcut
         selectionShortcutEnabled = try c.decodeIfPresent(Bool.self, forKey: .selectionShortcutEnabled) ?? defaults.selectionShortcutEnabled
@@ -335,5 +357,41 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     public var activeProfile: ProviderProfile {
         profiles[activeProvider] ?? .defaultProfile(for: activeProvider)
+    }
+
+    public func isHotkeyEnabled(_ action: GlobalHotkeyAction) -> Bool {
+        switch action {
+        case .quickTranslate: return quickTranslateShortcutEnabled
+        case .mainWindow: return mainWindowShortcutEnabled
+        case .selectionTranslate: return selectionShortcutEnabled
+        case .screenshotOCR: return screenshotOCREnabled
+        }
+    }
+
+    public func hotkeyShortcut(for action: GlobalHotkeyAction) -> HotkeyShortcut {
+        switch action {
+        case .quickTranslate: return quickTranslateShortcut
+        case .mainWindow: return mainWindowShortcut
+        case .selectionTranslate: return selectionShortcut
+        case .screenshotOCR: return screenshotOCRShortcut
+        }
+    }
+
+    /// Returns enabled hotkey actions that share the same key combination with another enabled Ferry action.
+    public func conflictingHotkeyActions() -> Set<GlobalHotkeyAction> {
+        var seen: [HotkeyShortcut: GlobalHotkeyAction] = [:]
+        var conflicts: Set<GlobalHotkeyAction> = []
+        for action in GlobalHotkeyAction.allCases {
+            guard isHotkeyEnabled(action) else { continue }
+            let shortcut = hotkeyShortcut(for: action)
+            guard shortcut.isValid else { continue }
+            if let existing = seen[shortcut] {
+                conflicts.insert(existing)
+                conflicts.insert(action)
+            } else {
+                seen[shortcut] = action
+            }
+        }
+        return conflicts
     }
 }

@@ -8,32 +8,38 @@ import Observation
 @MainActor
 @Observable
 public final class GlobalHotkeyService {
+    public var onQuickTranslate: (() -> Void)?
+    public var onMainWindow: (() -> Void)?
     public var onScreenshotOCR: (() -> Void)?
     public var onSelectionTranslate: (() -> Void)?
 
-    public var screenshotRegistrationFailed: Bool = false
-    public var selectionRegistrationFailed: Bool = false
+    /// Actions whose Carbon hotkey registration failed (typically because another app already claimed the combo).
+    public private(set) var failedActions: Set<GlobalHotkeyAction> = []
+    /// Enabled actions that share the exact same key combination inside Ferry.
+    public private(set) var duplicateActions: Set<GlobalHotkeyAction> = []
+
+    public var quickTranslateRegistrationFailed: Bool { failedActions.contains(.quickTranslate) }
+    public var mainWindowRegistrationFailed: Bool { failedActions.contains(.mainWindow) }
+    public var screenshotRegistrationFailed: Bool { failedActions.contains(.screenshotOCR) }
+    public var selectionRegistrationFailed: Bool { failedActions.contains(.selectionTranslate) }
 
     public var registrationFailed: Bool {
-        screenshotRegistrationFailed || selectionRegistrationFailed
+        !failedActions.isEmpty
+    }
+
+    public func hasConflict(for action: GlobalHotkeyAction) -> Bool {
+        failedActions.contains(action) || duplicateActions.contains(action)
     }
 
     private var eventHandlerRef: EventHandlerRef?
-    private var screenshotHotKeyRef: EventHotKeyRef?
-    private var selectionHotKeyRef: EventHotKeyRef?
-
-    private var screenshotEnabled: Bool = false
-    private var screenshotShortcut: HotkeyShortcut?
-    private var selectionEnabled: Bool = false
-    private var selectionShortcut: HotkeyShortcut?
+    private var hotKeyRefs: [GlobalHotkeyAction: EventHotKeyRef] = [:]
+    private var configuredHotkeys: [GlobalHotkeyAction: (enabled: Bool, shortcut: HotkeyShortcut)] = [:]
 
     private var isPaused: Bool = false
     private var settingsObserver: NSObjectProtocol?
     private weak var settingsStore: SettingsStore?
 
     private static let hotKeySignature: OSType = 0x46525259 // 'FRRY'
-    private static let screenshotHotKeyID: UInt32 = 1
-    private static let selectionHotKeyID: UInt32 = 2
 
     public init() {}
 
@@ -78,35 +84,44 @@ public final class GlobalHotkeyService {
     }
 
     public func sync(with settings: AppSettings) {
-        screenshotEnabled = settings.screenshotOCREnabled
-        screenshotShortcut = settings.screenshotOCRShortcut
-        selectionEnabled = settings.selectionShortcutEnabled
-        selectionShortcut = settings.selectionShortcut
+        var next: [GlobalHotkeyAction: (enabled: Bool, shortcut: HotkeyShortcut)] = [:]
+        for action in GlobalHotkeyAction.allCases {
+            next[action] = (
+                enabled: settings.isHotkeyEnabled(action),
+                shortcut: settings.hotkeyShortcut(for: action)
+            )
+        }
+        configuredHotkeys = next
+        duplicateActions = settings.conflictingHotkeyActions()
         applyRegistrations()
     }
 
     private func applyRegistrations() {
         unregisterAllHotKeys()
-        screenshotRegistrationFailed = false
-        selectionRegistrationFailed = false
+        var failed: Set<GlobalHotkeyAction> = []
 
-        guard !isPaused else { return }
-
-        if screenshotEnabled, let shortcut = screenshotShortcut, shortcut.isValid {
-            if let ref = register(shortcut: shortcut, id: Self.screenshotHotKeyID) {
-                screenshotHotKeyRef = ref
-            } else {
-                screenshotRegistrationFailed = true
-            }
+        guard !isPaused else {
+            failedActions = []
+            return
         }
 
-        if selectionEnabled, let shortcut = selectionShortcut, shortcut.isValid {
-            if let ref = register(shortcut: shortcut, id: Self.selectionHotKeyID) {
-                selectionHotKeyRef = ref
+        var claimedShortcuts = Set<HotkeyShortcut>()
+        for action in GlobalHotkeyAction.allCases {
+            guard let entry = configuredHotkeys[action], entry.enabled, entry.shortcut.isValid else {
+                continue
+            }
+            // Avoid double-registering an identical shortcut within Ferry.
+            if !claimedShortcuts.insert(entry.shortcut).inserted {
+                failed.insert(action)
+                continue
+            }
+            if let ref = register(shortcut: entry.shortcut, id: action.carbonID) {
+                hotKeyRefs[action] = ref
             } else {
-                selectionRegistrationFailed = true
+                failed.insert(action)
             }
         }
+        failedActions = failed
     }
 
     private func register(shortcut: HotkeyShortcut, id: UInt32) -> EventHotKeyRef? {
@@ -124,14 +139,10 @@ public final class GlobalHotkeyService {
     }
 
     private func unregisterAllHotKeys() {
-        if let ref = screenshotHotKeyRef {
+        for (_, ref) in hotKeyRefs {
             UnregisterEventHotKey(ref)
-            screenshotHotKeyRef = nil
         }
-        if let ref = selectionHotKeyRef {
-            UnregisterEventHotKey(ref)
-            selectionHotKeyRef = nil
-        }
+        hotKeyRefs.removeAll()
     }
 
     private func installHandlerIfNeeded() {
@@ -182,13 +193,16 @@ public final class GlobalHotkeyService {
 
     private func handleHotKey(id: UInt32) {
         guard !isPaused else { return }
-        switch id {
-        case Self.screenshotHotKeyID:
+        guard let action = GlobalHotkeyAction.allCases.first(where: { $0.carbonID == id }) else { return }
+        switch action {
+        case .quickTranslate:
+            onQuickTranslate?()
+        case .mainWindow:
+            onMainWindow?()
+        case .screenshotOCR:
             onScreenshotOCR?()
-        case Self.selectionHotKeyID:
+        case .selectionTranslate:
             onSelectionTranslate?()
-        default:
-            break
         }
     }
 

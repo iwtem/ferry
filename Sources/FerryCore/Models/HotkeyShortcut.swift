@@ -29,6 +29,35 @@ public struct HotkeyModifiers: OptionSet, Codable, Equatable, Hashable, Sendable
     }
 }
 
+/// Actions bound to global macOS hotkeys via Carbon `RegisterEventHotKey`.
+public enum GlobalHotkeyAction: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case quickTranslate
+    case mainWindow
+    case selectionTranslate
+    case screenshotOCR
+
+    public var id: String { rawValue }
+
+    /// Stable Carbon `EventHotKeyID.id` values.
+    public var carbonID: UInt32 {
+        switch self {
+        case .screenshotOCR: return 1
+        case .selectionTranslate: return 2
+        case .quickTranslate: return 3
+        case .mainWindow: return 4
+        }
+    }
+
+    public var defaultShortcut: HotkeyShortcut {
+        switch self {
+        case .quickTranslate: return .defaultQuickTranslate
+        case .mainWindow: return .defaultMainWindow
+        case .selectionTranslate: return .defaultSelectionTranslate
+        case .screenshotOCR: return .defaultScreenshotOCR
+        }
+    }
+}
+
 /// Configurable global keyboard shortcut (virtual key code + modifiers).
 public struct HotkeyShortcut: Codable, Equatable, Hashable, Sendable {
     public var keyCode: UInt32
@@ -38,6 +67,18 @@ public struct HotkeyShortcut: Codable, Equatable, Hashable, Sendable {
         self.keyCode = keyCode
         self.modifiers = modifiers
     }
+
+    /// Default quick-translate popover toggle shortcut: ⌥Space (virtual keyCode 49 = Space).
+    public static let defaultQuickTranslate = HotkeyShortcut(
+        keyCode: 49,
+        modifiers: [.option]
+    )
+
+    /// Default main window toggle shortcut: ⌥⇧F (virtual keyCode 3 = ANSI F).
+    public static let defaultMainWindow = HotkeyShortcut(
+        keyCode: 3,
+        modifiers: [.option, .shift]
+    )
 
     /// Default screenshot OCR shortcut: ⌥⇧S (virtual keyCode 1 = ANSI S).
     public static let defaultScreenshotOCR = HotkeyShortcut(

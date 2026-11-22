@@ -15,7 +15,11 @@ public final class SettingsStore {
                 FerryLocalization.languageSetting = settings.language
                 NotificationCenter.default.post(name: .ferryLanguageDidChange, object: nil)
             }
-            if oldValue.screenshotOCREnabled != settings.screenshotOCREnabled
+            if oldValue.quickTranslateShortcutEnabled != settings.quickTranslateShortcutEnabled
+                || oldValue.quickTranslateShortcut != settings.quickTranslateShortcut
+                || oldValue.mainWindowShortcutEnabled != settings.mainWindowShortcutEnabled
+                || oldValue.mainWindowShortcut != settings.mainWindowShortcut
+                || oldValue.screenshotOCREnabled != settings.screenshotOCREnabled
                 || oldValue.screenshotOCRShortcut != settings.screenshotOCRShortcut
                 || oldValue.selectionShortcutEnabled != settings.selectionShortcutEnabled
                 || oldValue.selectionShortcut != settings.selectionShortcut {
