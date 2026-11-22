@@ -332,12 +332,82 @@ public struct SettingsView: View {
                 Spacer(minLength: 0)
             }
             .animation(FerryMotion.animation(FerryMotion.spring), value: uiState.testStatusMessage)
+
+            secondaryModelSection
         }
         .task(id: provider) {
             if settingsStore.profile(for: provider).fetchedModels.isEmpty,
                !settingsStore.apiKey(for: provider).isEmpty,
                uiState.modelFetchMessage[provider] == nil {
                 fetchModels(for: provider)
+            }
+        }
+    }
+
+    private var secondaryModelSection: some View {
+        let selected = settingsStore.settings.secondaryModel
+        let suggested = settingsStore.suggestedSecondaryModel()
+        let groups = settingsStore.quickSwitchModelGroups()
+        let caption: String = {
+            if selected == nil, let suggested {
+                return l10n.secondaryModelAutoCaption(suggested.displayLabel(in: lang))
+            }
+            return l10n.secondaryModelRowCaption
+        }()
+
+        return VStack(alignment: .leading, spacing: 8) {
+            GlassLabel(l10n.secondaryModelSectionLabel)
+            GlassCard {
+                GlassRow(title: l10n.secondaryModelRowTitle, caption: caption, divider: false) {
+                    Menu {
+                        Button {
+                            settingsStore.settings.secondaryModel = nil
+                        } label: {
+                            if selected == nil {
+                                Label(l10n.secondaryModelAuto, systemImage: "checkmark")
+                            } else {
+                                Text(l10n.secondaryModelAuto)
+                            }
+                        }
+                        Divider()
+                        ForEach(groups, id: \.provider) { group in
+                            Section(group.provider.shortName(in: lang)) {
+                                ForEach(group.choices) { choice in
+                                    Button {
+                                        settingsStore.settings.secondaryModel = choice
+                                    } label: {
+                                        if selected == choice {
+                                            Label(choice.model, systemImage: "checkmark")
+                                        } else {
+                                            Text(choice.model)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(selected?.displayLabel(in: lang) ?? l10n.secondaryModelAuto)
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            LucideIcon(.chevronsUpDown, size: 11, strokeWidth: 2.1)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 28)
+                        .background(Stage.controlFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(Stage.controlStroke, lineWidth: 1)
+                        )
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.plain)
+                    .menuIndicator(.hidden)
+                    .frame(maxWidth: 240, alignment: .trailing)
+                }
             }
         }
     }
@@ -737,10 +807,16 @@ public struct SettingsView: View {
                             set: { settingsStore.settings.wordLookupEnabled = $0 }
                         ))
                     }
-                    GlassRow(title: l10n.pdfLineBreakFix, caption: l10n.pdfLineBreakFixCaption, divider: false) {
+                    GlassRow(title: l10n.pdfLineBreakFix, caption: l10n.pdfLineBreakFixCaption) {
                         GlassToggle(isOn: Binding(
                             get: { settingsStore.settings.pdfLineBreakFixEnabled },
                             set: { settingsStore.settings.pdfLineBreakFixEnabled = $0 }
+                        ))
+                    }
+                    GlassRow(title: l10n.translationCache, caption: l10n.translationCacheToggleCaption, divider: false) {
+                        GlassToggle(isOn: Binding(
+                            get: { settingsStore.settings.translationCacheEnabled },
+                            set: { settingsStore.settings.translationCacheEnabled = $0 }
                         ))
                     }
                 }
@@ -761,8 +837,7 @@ public struct SettingsView: View {
                     }
                     GlassRow(
                         title: l10n.translationHistory,
-                        caption: l10n.translationHistoryCaption(settingsStore.recentRecords.count),
-                        divider: false
+                        caption: l10n.translationHistoryCaption(settingsStore.recentRecords.count)
                     ) {
                         Button(l10n.clear) {
                             withAnimation(FerryMotion.animation(FerryMotion.quick)) {
@@ -771,6 +846,23 @@ public struct SettingsView: View {
                         }
                         .buttonStyle(GlassButtonStyle(kind: .destructive))
                         .disabled(settingsStore.recentRecords.isEmpty)
+                    }
+                    GlassRow(
+                        title: l10n.translationCacheStorage,
+                        caption: l10n.translationCacheCaption(
+                            count: settingsStore.cachedTranslationCount,
+                            capacity: settingsStore.translationCacheCapacity,
+                            hits: settingsStore.cacheHitCount
+                        ),
+                        divider: false
+                    ) {
+                        Button(l10n.clear) {
+                            withAnimation(FerryMotion.animation(FerryMotion.quick)) {
+                                settingsStore.clearTranslationCache()
+                            }
+                        }
+                        .buttonStyle(GlassButtonStyle(kind: .destructive))
+                        .disabled(settingsStore.cachedTranslationCount == 0)
                     }
                 }
             }

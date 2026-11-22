@@ -78,6 +78,26 @@ public final class QuickPopupController {
         panel?.orderOut(nil)
     }
 
+    /// Resizes the panel height while keeping its top edge anchored (clamped to the visible screen).
+    public func resize(toHeight height: CGFloat) {
+        guard let panel, abs(panel.frame.height - height) > 0.5 else { return }
+        var frame = panel.frame
+        let topY = frame.maxY
+        frame.size.height = height
+        frame.origin.y = topY - height
+        let visible = panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
+        if let visible {
+            let padding: CGFloat = 14
+            if frame.origin.y < visible.minY + padding {
+                frame.origin.y = visible.minY + padding
+            }
+            if frame.maxY > visible.maxY - padding {
+                frame.origin.y = visible.maxY - padding - frame.height
+            }
+        }
+        panel.setFrame(frame, display: true, animate: false)
+    }
+
     private func installDismissMonitors() {
         removeDismissMonitors()
 

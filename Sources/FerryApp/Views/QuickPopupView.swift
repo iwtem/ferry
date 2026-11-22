@@ -25,7 +25,12 @@ public struct QuickPopupView: View {
     public var onOpenScreenRecordingSettings: () -> Void
     public var onOpenAccessibilitySettings: () -> Void
     public var onReplaceInSourceApp: (() -> Void)?
+    public var onHeightChange: (CGFloat) -> Void
     public var onClose: () -> Void
+
+    static let width: CGFloat = 404
+    static let standardHeight: CGFloat = 300
+    static let compareHeight: CGFloat = 420
 
     public init(
         session: TranslatorSession,
@@ -38,6 +43,7 @@ public struct QuickPopupView: View {
         onOpenScreenRecordingSettings: @escaping () -> Void = {},
         onOpenAccessibilitySettings: @escaping () -> Void = {},
         onReplaceInSourceApp: (() -> Void)? = nil,
+        onHeightChange: @escaping (CGFloat) -> Void = { _ in },
         onClose: @escaping () -> Void
     ) {
         self.session = session
@@ -50,6 +56,7 @@ public struct QuickPopupView: View {
         self.onOpenScreenRecordingSettings = onOpenScreenRecordingSettings
         self.onOpenAccessibilitySettings = onOpenAccessibilitySettings
         self.onReplaceInSourceApp = onReplaceInSourceApp
+        self.onHeightChange = onHeightChange
         self.onClose = onClose
     }
 
@@ -163,6 +170,24 @@ public struct QuickPopupView: View {
                 Spacer(minLength: 0)
             } else {
                 VStack(spacing: 0) {
+                    if session.isComparing {
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(FerryTheme.accent)
+                                .frame(width: 5.5, height: 5.5)
+                            Text(session.effectiveResultModel.model)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.top, 6)
+                        .padding(.bottom, 5)
+                        Rectangle().fill(Stage.hairline).frame(height: 1)
+                    }
+
                     ScrollView {
                         VStack(alignment: .leading, spacing: 4) {
                             if session.isRecognizingOCR {
@@ -199,6 +224,10 @@ public struct QuickPopupView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                     HStack(spacing: 2) {
+                        if session.isFromCache && hasOutput && !session.isTranslating {
+                            CachedResultBadge(compact: true)
+                                .padding(.leading, 4)
+                        }
                         Spacer()
                         SpeakButton(
                             speechService: speechService,
@@ -221,19 +250,137 @@ public struct QuickPopupView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .modifier(PanelCardSurface())
+
+                if session.isComparing {
+                    let hasComparisonOutput = !session.comparisonText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    VStack(spacing: 0) {
+                        HStack(spacing: 5) {
+                            ComparisonModelPicker(
+                                session: session,
+                                settingsStore: settingsStore,
+                                compact: true,
+                                onOpenSettings: onOpenSettings
+                            )
+                            Spacer(minLength: 4)
+                            if hasComparisonOutput && !session.isComparisonTranslating {
+                                Button(l10n.adoptComparisonButton) {
+                                    session.adoptComparisonResult()
+                                }
+                                .buttonStyle(GlassButtonStyle(kind: .glass, height: 20))
+                                .help(l10n.adoptComparisonTooltip)
+                            }
+                            Button {
+                                session.closeComparison()
+                            } label: {
+                                LucideIcon(.x, size: 12)
+                            }
+                            .buttonStyle(HoverIconButtonStyle(size: 20))
+                            .help(l10n.closeCompareTooltip)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.top, 6)
+                        .padding(.bottom, 5)
+
+                        Rectangle().fill(Stage.hairline).frame(height: 1)
+
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 4) {
+                                if let error = session.comparisonErrorMessage {
+                                    ErrorBannerView(
+                                        message: error,
+                                        showSettingsAction: error.contains("API Key") || error.contains("401"),
+                                        onOpenSettings: onOpenSettings
+                                    )
+                                } else if !hasComparisonOutput && session.isComparisonTranslating {
+                                    HStack(spacing: 6) {
+                                        ProgressView().controlSize(.small)
+                                        Text(l10n.translatingLongEllipsis)
+                                            .font(.system(size: 12.5))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.vertical, 6)
+                                } else {
+                                    Text(session.comparisonText)
+                                        .font(.system(size: 13))
+                                        .lineSpacing(3)
+                                        .foregroundStyle(.primary)
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.top, 8)
+                            .padding(.bottom, 4)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        HStack(spacing: 2) {
+                            if session.isComparisonFromCache && hasComparisonOutput && !session.isComparisonTranslating {
+                                CachedResultBadge(compact: true)
+                                    .padding(.leading, 4)
+                            }
+                            Spacer()
+                            if session.isComparisonTranslating {
+                                Button(l10n.stop) {
+                                    session.cancelComparison()
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.red)
+                                .padding(.trailing, 4)
+                            } else {
+                                RetranslateButton(size: 22, bypassCache: session.isComparisonFromCache) {
+                                    session.retranslateComparison(bypassCache: true)
+                                }
+                            }
+                            SpeakButton(
+                                speechService: speechService,
+                                id: "popup-compare-result",
+                                text: session.comparisonText,
+                                languageHint: session.outputLanguageHint,
+                                help: l10n.speakTranslation,
+                                size: 22
+                            )
+                            CopyResultButton(
+                                copied: session.comparisonCopiedRecently,
+                                disabled: !hasComparisonOutput,
+                                size: 22
+                            ) {
+                                session.copyComparisonTranslation()
+                            }
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.bottom, 5)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(StageHue.azure.bottom.opacity(0.065), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                    )
+                }
             }
 
             SpeechErrorBanner(speechService: speechService)
 
             // Bottom action bar
-            HStack(spacing: 6) {
-                Text("\(settingsStore.settings.activeProvider.shortName(in: lang)) · \(settingsStore.settings.activeProfile.effectiveModel)")
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+            HStack(spacing: 5) {
+                QuickModelSwitchMenu(
+                    session: session,
+                    settingsStore: settingsStore,
+                    showCompareOption: !session.isComparing,
+                    chipStyle: true,
+                    onOpenSettings: onOpenSettings
+                )
+                .frame(maxWidth: 190, alignment: .leading)
 
                 Spacer(minLength: 4)
+
+                CompareToggleButton(
+                    session: session,
+                    settingsStore: settingsStore,
+                    size: 24
+                )
 
                 if session.isTranslating {
                     Button {
@@ -245,14 +392,9 @@ public struct QuickPopupView: View {
                     }
                     .buttonStyle(.plain)
                 } else {
-                    Button {
-                        session.translate()
-                    } label: {
-                        LucideIcon(.rotateCw, size: 13.5)
+                    RetranslateButton(size: 24, bypassCache: session.isFromCache) {
+                        session.retranslate(bypassCache: true)
                     }
-                    .buttonStyle(HoverIconButtonStyle(size: 24))
-                    .help(l10n.retranslateTooltip)
-                    .accessibilityLabel(l10n.retranslateTooltip)
                 }
 
                 if let onReplace = onReplaceInSourceApp, uiState.sourceAppName != nil {
@@ -275,7 +417,7 @@ public struct QuickPopupView: View {
             }
         }
         .padding(12)
-        .frame(width: 404, height: 300)
+        .frame(width: Self.width, height: session.isComparing ? Self.compareHeight : Self.standardHeight)
         .background {
             ZStack {
                 VisualEffectBackground(material: .hudWindow, blendingMode: .behindWindow)
@@ -298,6 +440,9 @@ public struct QuickPopupView: View {
             if !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 session.translate()
             }
+        }
+        .onChange(of: session.isComparing) { _, comparing in
+            onHeightChange(comparing ? Self.compareHeight : Self.standardHeight)
         }
     }
 }

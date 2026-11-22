@@ -139,7 +139,7 @@ public struct ProviderProfile: Codable, Equatable, Sendable {
     }
 
     /// Base URL with trailing slashes and any `/chat/completions` suffix removed.
-    private var normalizedBaseURL: String? {
+    var normalizedBaseURL: String? {
         var cleaned = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         while cleaned.hasSuffix("/") {
             cleaned.removeLast()
@@ -164,6 +164,23 @@ public struct ProviderProfile: Codable, Equatable, Sendable {
             model: kind.defaultModel,
             customModel: ""
         )
+    }
+}
+
+/// Identifies a specific provider + model target for one-shot retranslation or dual-model comparison.
+public struct ModelChoice: Codable, Hashable, Identifiable, Sendable {
+    public let provider: ProviderKind
+    public let model: String
+
+    public var id: String { "\(provider.rawValue)::\(model)" }
+
+    public init(provider: ProviderKind, model: String) {
+        self.provider = provider
+        self.model = model
+    }
+
+    public func displayLabel(in language: ResolvedAppLanguage) -> String {
+        "\(provider.shortName(in: language)) · \(model)"
     }
 }
 
@@ -200,6 +217,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var wordLookupEnabled: Bool
     /// Automatically merge wrapped PDF line breaks and de-hyphenate split words before translating.
     public var pdfLineBreakFixEnabled: Bool
+    /// Cache translation results locally (LRU) so repeated lookups return immediately without using tokens.
+    public var translationCacheEnabled: Bool
     /// Speech / pronunciation configuration (offline macOS voice or cloud TTS).
     public var speech: SpeechSettings
     public var appearance: AppearanceMode
@@ -219,6 +238,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var autoDownloadUpdates: Bool
     /// Subscribe to real-time SSE release push events so new releases download within seconds of publishing.
     public var realtimeUpdatePushEnabled: Bool
+    /// Optional preferred secondary/strong model used for one-click comparison & retranslation (`nil` = auto-pick).
+    public var secondaryModel: ModelChoice?
     /// Optional version string the user chose to skip reminders for.
     public var skippedUpdateVersion: String?
 
@@ -236,6 +257,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         temperature: Double = 0.2,
         wordLookupEnabled: Bool = true,
         pdfLineBreakFixEnabled: Bool = true,
+        translationCacheEnabled: Bool = true,
         speech: SpeechSettings = SpeechSettings(),
         appearance: AppearanceMode = .system,
         language: AppLanguage = .system,
@@ -246,6 +268,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         autoCheckForUpdates: Bool = true,
         autoDownloadUpdates: Bool = true,
         realtimeUpdatePushEnabled: Bool = true,
+        secondaryModel: ModelChoice? = nil,
         skippedUpdateVersion: String? = nil
     ) {
         self.activeProvider = activeProvider
@@ -257,6 +280,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.temperature = temperature
         self.wordLookupEnabled = wordLookupEnabled
         self.pdfLineBreakFixEnabled = pdfLineBreakFixEnabled
+        self.translationCacheEnabled = translationCacheEnabled
         self.speech = speech
         self.appearance = appearance
         self.language = language
@@ -267,15 +291,17 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.autoCheckForUpdates = autoCheckForUpdates
         self.autoDownloadUpdates = autoDownloadUpdates
         self.realtimeUpdatePushEnabled = realtimeUpdatePushEnabled
+        self.secondaryModel = secondaryModel
         self.skippedUpdateVersion = skippedUpdateVersion
     }
 
     private enum CodingKeys: String, CodingKey {
         case activeProvider, profiles, defaultTargetLanguage, doubleCopyEnabled, doubleCopyIntervalMs
-        case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, pdfLineBreakFixEnabled, speech, appearance, language
+        case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, pdfLineBreakFixEnabled, translationCacheEnabled
+        case speech, appearance, language
         case screenshotOCREnabled, screenshotOCRShortcut
         case selectionShortcutEnabled, selectionShortcut
-        case autoCheckForUpdates, autoDownloadUpdates, realtimeUpdatePushEnabled, skippedUpdateVersion
+        case autoCheckForUpdates, autoDownloadUpdates, realtimeUpdatePushEnabled, secondaryModel, skippedUpdateVersion
     }
 
     // Every field falls back to its default, so settings files from older versions
@@ -292,6 +318,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         temperature = try c.decodeIfPresent(Double.self, forKey: .temperature) ?? defaults.temperature
         wordLookupEnabled = try c.decodeIfPresent(Bool.self, forKey: .wordLookupEnabled) ?? defaults.wordLookupEnabled
         pdfLineBreakFixEnabled = try c.decodeIfPresent(Bool.self, forKey: .pdfLineBreakFixEnabled) ?? defaults.pdfLineBreakFixEnabled
+        translationCacheEnabled = try c.decodeIfPresent(Bool.self, forKey: .translationCacheEnabled) ?? defaults.translationCacheEnabled
         speech = try c.decodeIfPresent(SpeechSettings.self, forKey: .speech) ?? defaults.speech
         appearance = try c.decodeIfPresent(AppearanceMode.self, forKey: .appearance) ?? defaults.appearance
         language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? defaults.language
@@ -302,6 +329,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         autoCheckForUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoCheckForUpdates) ?? defaults.autoCheckForUpdates
         autoDownloadUpdates = try c.decodeIfPresent(Bool.self, forKey: .autoDownloadUpdates) ?? defaults.autoDownloadUpdates
         realtimeUpdatePushEnabled = try c.decodeIfPresent(Bool.self, forKey: .realtimeUpdatePushEnabled) ?? defaults.realtimeUpdatePushEnabled
+        secondaryModel = try c.decodeIfPresent(ModelChoice.self, forKey: .secondaryModel) ?? defaults.secondaryModel
         skippedUpdateVersion = try c.decodeIfPresent(String.self, forKey: .skippedUpdateVersion) ?? defaults.skippedUpdateVersion
     }
 

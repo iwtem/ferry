@@ -194,6 +194,65 @@ struct L10n: Sendable {
     var closeEscTooltip: String { t(zh: "关闭 (Esc)", en: "Close (Esc)") }
     var dragToMoveTooltip: String { t(zh: "拖动空白处可移动窗口", en: "Drag empty area to move") }
     var retranslateTooltip: String { t(zh: "重新翻译", en: "Retranslate") }
+    var retranslateBypassCacheTooltip: String { t(zh: "跳过缓存，重新调用模型翻译", en: "Retranslate (bypass cache)") }
+    var cachedResultBadge: String { t(zh: "已缓存", en: "Cached") }
+    var cachedResultTooltip: String {
+        t(zh: "命中本地 LRU 缓存，秒出结果且不消耗 Token", en: "Served instantly from local LRU cache (0 tokens used)")
+    }
+
+    // MARK: - Quick Model Switch & Dual-Model Compare
+
+    var switchModelOnceTooltip: String {
+        t(zh: "单次切换模型重译（不改默认设置）", en: "Retranslate once with another model")
+    }
+    var switchModelOnceHeader: String {
+        t(zh: "单次切模型重译", en: "Retranslate Once With")
+    }
+    func retranslateWithModel(_ model: String) -> String {
+        t(zh: "用 \(model) 重译", en: "Retranslate with \(model)")
+    }
+    var restoreDefaultModel: String {
+        t(zh: "恢复默认模型", en: "Back to Default Model")
+    }
+    var compareModelsTooltip: String {
+        t(zh: "双模型对比翻译", en: "Compare with a second model")
+    }
+    var closeCompareTooltip: String {
+        t(zh: "关闭双模型对比", en: "Close model comparison")
+    }
+    func compareWithModelMenu(_ model: String) -> String {
+        t(zh: "与 \(model) 双模型对比", en: "Compare with \(model)")
+    }
+    var compareMenuAction: String {
+        t(zh: "双模型对比", en: "Compare Side-by-Side")
+    }
+    var compareNoAlternativeTooltip: String {
+        t(zh: "请先在「设置 → 模型」中配置更多模型或服务商", en: "Configure another model or provider in Settings → Models")
+    }
+    var switchCompareModelTooltip: String {
+        t(zh: "切换对比模型", en: "Switch comparison model")
+    }
+    var adoptComparisonButton: String {
+        t(zh: "采用", en: "Use")
+    }
+    var adoptComparisonTooltip: String {
+        t(zh: "采用此模型的译文作为主结果", en: "Use this model's result as primary")
+    }
+    var secondaryModelSectionLabel: String {
+        t(zh: "对比与强模型重译", en: "COMPARE & STRONG MODEL")
+    }
+    var secondaryModelRowTitle: String {
+        t(zh: "备选强模型", en: "Secondary Model")
+    }
+    var secondaryModelRowCaption: String {
+        t(zh: "一键「双模型对比」或「强模型重译」时默认使用的模型", en: "Default second model for one-click comparison & retranslation")
+    }
+    var secondaryModelAuto: String {
+        t(zh: "自动选择", en: "Auto")
+    }
+    func secondaryModelAutoCaption(_ suggested: String) -> String {
+        t(zh: "自动：当前推荐 \(suggested)", en: "Auto: currently \(suggested)")
+    }
 
     // MARK: - Desktop Mini Widget
 
@@ -373,6 +432,10 @@ struct L10n: Sendable {
     var pdfLineBreakFixCaption: String {
         t(zh: "自动合并复制来的多余硬回车与连字符断词 (algo-\\nrithm)", en: "Auto-join wrapped PDF lines and de-hyphenate split words")
     }
+    var translationCache: String { t(zh: "翻译结果缓存", en: "Translation Cache") }
+    var translationCacheToggleCaption: String {
+        t(zh: "重复查询相同词句直接命中本地 LRU 缓存，秒出结果并节省 Token", en: "Return instant results for repeated lookups via local LRU cache, saving tokens")
+    }
 
     var speechSectionLabel: String { t(zh: "朗读", en: "SPEECH") }
 
@@ -409,6 +472,21 @@ struct L10n: Sendable {
         t(
             zh: "\(count) 条 · 设置和 Key 只存在本机",
             en: "\(count) \(count == 1 ? "item" : "items") · Settings and keys stay on this Mac"
+        )
+    }
+
+    var translationCacheStorage: String { t(zh: "翻译缓存", en: "Translation Cache") }
+
+    func translationCacheCaption(count: Int, capacity: Int, hits: Int) -> String {
+        if hits > 0 {
+            return t(
+                zh: "\(count) / \(capacity) 条 · 本次已节省 \(hits) 次请求",
+                en: "\(count) / \(capacity) cached · \(hits) \(hits == 1 ? "request" : "requests") saved this session"
+            )
+        }
+        return t(
+            zh: "\(count) / \(capacity) 条 · 超出上限自动淘汰最久未用记录",
+            en: "\(count) / \(capacity) cached · Least-recently-used entries evict automatically"
         )
     }
 

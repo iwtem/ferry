@@ -77,6 +77,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         updateService.stop()
         speechService.stop()
         launchAtLogin.stopObserving()
+        settingsStore.flushTranslationCache()
     }
 
     private func observeLanguageChanges() {
@@ -369,7 +370,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         quickPopupUIState.isPinned = quickPopupController.isPinned
         quickPopupUIState.showFullSource = false
 
-        quickPopupController.show(near: mouseLocation) { [weak self] in
+        let initialSize = NSSize(
+            width: QuickPopupView.width,
+            height: quickPopupSession.isComparing ? QuickPopupView.compareHeight : QuickPopupView.standardHeight
+        )
+        quickPopupController.show(near: mouseLocation, size: initialSize) { [weak self] in
             guard let self else { return AnyView(EmptyView()) }
             return AnyView(
                 QuickPopupView(
@@ -402,6 +407,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                     },
                     onReplaceInSourceApp: { [weak self] in
                         self?.replaceInSourceApp()
+                    },
+                    onHeightChange: { [weak self] height in
+                        self?.quickPopupController.resize(toHeight: height)
                     },
                     onClose: { [weak self] in
                         self?.speechService.stop()

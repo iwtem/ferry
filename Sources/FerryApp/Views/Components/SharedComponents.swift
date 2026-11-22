@@ -376,6 +376,339 @@ public struct CopyResultButton: View {
     }
 }
 
+/// Compact pill indicating a translation was served instantly from the local LRU cache.
+public struct CachedResultBadge: View {
+    public var compact: Bool = false
+    @Environment(\.appLanguage) private var appLanguage
+
+    public init(compact: Bool = false) {
+        self.compact = compact
+    }
+
+    public var body: some View {
+        let l10n = L10n(appLanguage)
+        HStack(spacing: 3) {
+            LucideIcon(.zap, size: compact ? 10 : 10.5, strokeWidth: 2.1)
+            Text(l10n.cachedResultBadge)
+                .font(.system(size: compact ? 10 : 10.5, weight: .medium))
+        }
+        .foregroundStyle(FerryTheme.accentText)
+        .padding(.horizontal, compact ? 6 : 7)
+        .padding(.vertical, compact ? 2 : 2.5)
+        .background(FerryTheme.accent.opacity(0.12), in: Capsule())
+        .overlay(Capsule().strokeBorder(FerryTheme.accent.opacity(0.22), lineWidth: 0.75))
+        .help(l10n.cachedResultTooltip)
+        .accessibilityLabel(l10n.cachedResultTooltip)
+        .fixedSize()
+    }
+}
+
+/// Icon button that bypasses the LRU cache and requests a fresh translation from the model.
+public struct RetranslateButton: View {
+    public var size: CGFloat = 26
+    public var bypassCache: Bool = true
+    public var disabled: Bool = false
+    public let action: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
+
+    public init(size: CGFloat = 26, bypassCache: Bool = true, disabled: Bool = false, action: @escaping () -> Void) {
+        self.size = size
+        self.bypassCache = bypassCache
+        self.disabled = disabled
+        self.action = action
+    }
+
+    public var body: some View {
+        let l10n = L10n(appLanguage)
+        let label = bypassCache ? l10n.retranslateBypassCacheTooltip : l10n.retranslateTooltip
+        let iconSize = max(13, (size * 0.56).rounded())
+        Button(action: action) {
+            LucideIcon(.rotateCw, size: iconSize)
+        }
+        .buttonStyle(HoverIconButtonStyle(size: size))
+        .disabled(disabled)
+        .help(label)
+        .accessibilityLabel(label)
+    }
+}
+
+/// Subtle pill shown when the current primary translation came from a one-shot model override.
+public struct ModelOverrideBadge: View {
+    public let model: String
+    public var compact: Bool = false
+
+    public init(model: String, compact: Bool = false) {
+        self.model = model
+        self.compact = compact
+    }
+
+    public var body: some View {
+        HStack(spacing: 3) {
+            LucideIcon(.layers, size: compact ? 9.5 : 10, strokeWidth: 2.0)
+            Text(model)
+                .font(.system(size: compact ? 10 : 10.5, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, compact ? 6 : 7)
+        .padding(.vertical, compact ? 2 : 2.5)
+        .background(Color.primary.opacity(0.06), in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.75))
+        .frame(maxWidth: compact ? 120 : 160, alignment: .leading)
+    }
+}
+
+/// One-shot model switcher menu: retranslate the current text with a stronger or alternative model
+/// without changing the user's global default provider/model.
+public struct QuickModelSwitchMenu: View {
+    public var session: TranslatorSession
+    public var settingsStore: SettingsStore
+    public var showCompareOption: Bool = true
+    public var chipStyle: Bool = false
+    public var size: CGFloat = 26
+    public var onOpenSettings: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
+
+    public init(
+        session: TranslatorSession,
+        settingsStore: SettingsStore,
+        showCompareOption: Bool = true,
+        chipStyle: Bool = false,
+        size: CGFloat = 26,
+        onOpenSettings: @escaping () -> Void
+    ) {
+        self.session = session
+        self.settingsStore = settingsStore
+        self.showCompareOption = showCompareOption
+        self.chipStyle = chipStyle
+        self.size = size
+        self.onOpenSettings = onOpenSettings
+    }
+
+    private var hasSource: Bool {
+        !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    public var body: some View {
+        let l10n = L10n(appLanguage)
+        let current = session.effectiveResultModel
+        let suggested = settingsStore.suggestedSecondaryModel(for: current)
+        let groups = settingsStore.quickSwitchModelGroups()
+
+        Menu {
+            if let suggested {
+                Button {
+                    session.retranslate(with: suggested)
+                } label: {
+                    Label(l10n.retranslateWithModel(suggested.model), systemImage: "bolt.fill")
+                }
+                .disabled(!hasSource)
+
+                if showCompareOption {
+                    Button {
+                        session.startComparison(with: suggested)
+                    } label: {
+                        Label(l10n.compareWithModelMenu(suggested.model), systemImage: "rectangle.split.2x1")
+                    }
+                    .disabled(!hasSource)
+                }
+
+                Divider()
+            }
+
+            if session.isModelOverridden {
+                let defaultChoice = settingsStore.activeModelChoice
+                Button {
+                    session.retranslate(with: defaultChoice)
+                } label: {
+                    Label("\(l10n.restoreDefaultModel) (\(defaultChoice.model))", systemImage: "arrow.uturn.backward")
+                }
+                .disabled(!hasSource)
+                Divider()
+            }
+
+            ForEach(groups, id: \.provider) { group in
+                Section(group.provider.shortName(in: appLanguage)) {
+                    ForEach(group.choices) { choice in
+                        Button {
+                            session.retranslate(with: choice)
+                        } label: {
+                            if choice == current {
+                                Label(choice.model, systemImage: "checkmark")
+                            } else {
+                                Text(choice.model)
+                            }
+                        }
+                        .disabled(!hasSource)
+                    }
+                }
+            }
+
+            Divider()
+            Button(l10n.modelSettingsItem, action: onOpenSettings)
+        } label: {
+            if chipStyle {
+                HStack(spacing: 4) {
+                    LucideIcon(.layers, size: 11, strokeWidth: 2.0)
+                        .foregroundStyle(session.isModelOverridden ? FerryTheme.accentText : .secondary)
+                    Text(current.displayLabel(in: appLanguage))
+                        .font(.system(size: 10.5, weight: session.isModelOverridden ? .medium : .regular))
+                        .foregroundStyle(session.isModelOverridden ? FerryTheme.accentText : .secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    LucideIcon(.chevronDown, size: 9.5, strokeWidth: 2.2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(
+                    session.isModelOverridden ? FerryTheme.accent.opacity(0.12) : Color.primary.opacity(0.055),
+                    in: Capsule()
+                )
+                .overlay(
+                    Capsule().strokeBorder(
+                        session.isModelOverridden ? FerryTheme.accent.opacity(0.24) : Color.primary.opacity(0.09),
+                        lineWidth: 0.75
+                    )
+                )
+            } else {
+                let iconSize = max(13, (size * 0.56).rounded())
+                LucideIcon(.layers, size: iconSize)
+                    .foregroundStyle(session.isModelOverridden ? FerryTheme.accentText : .secondary)
+                    .frame(width: size, height: size)
+                    .background(
+                        session.isModelOverridden ? FerryTheme.accent.opacity(0.14) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    )
+                    .contentShape(Rectangle())
+            }
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .disabled(!hasSource && !chipStyle)
+        .opacity((!hasSource && !chipStyle) ? 0.35 : 1)
+        .help(l10n.switchModelOnceTooltip)
+        .accessibilityLabel(l10n.switchModelOnceTooltip)
+    }
+}
+
+/// Toggle button that opens or closes dual-model comparison with a single click.
+public struct CompareToggleButton: View {
+    public var session: TranslatorSession
+    public var settingsStore: SettingsStore
+    public var size: CGFloat = 26
+    @Environment(\.appLanguage) private var appLanguage
+
+    public init(session: TranslatorSession, settingsStore: SettingsStore, size: CGFloat = 26) {
+        self.session = session
+        self.settingsStore = settingsStore
+        self.size = size
+    }
+
+    private var hasSource: Bool {
+        !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasAlternative: Bool {
+        settingsStore.suggestedSecondaryModel(for: session.effectiveResultModel) != nil
+    }
+
+    public var body: some View {
+        let l10n = L10n(appLanguage)
+        let iconSize = max(13, (size * 0.56).rounded())
+        let tooltip: String = {
+            if session.isComparing { return l10n.closeCompareTooltip }
+            if !hasAlternative { return l10n.compareNoAlternativeTooltip }
+            return l10n.compareModelsTooltip
+        }()
+
+        Button {
+            session.toggleComparison()
+        } label: {
+            LucideIcon(.columns2, size: iconSize)
+        }
+        .buttonStyle(HoverIconButtonStyle(isOn: session.isComparing, size: size))
+        .disabled(!session.isComparing && (!hasSource || !hasAlternative))
+        .help(tooltip)
+        .accessibilityLabel(tooltip)
+    }
+}
+
+/// Compact dropdown pill inside the comparison card header to pick or switch the second model on the fly.
+public struct ComparisonModelPicker: View {
+    public var session: TranslatorSession
+    public var settingsStore: SettingsStore
+    public var compact: Bool = false
+    public var onOpenSettings: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
+
+    public init(
+        session: TranslatorSession,
+        settingsStore: SettingsStore,
+        compact: Bool = false,
+        onOpenSettings: @escaping () -> Void
+    ) {
+        self.session = session
+        self.settingsStore = settingsStore
+        self.compact = compact
+        self.onOpenSettings = onOpenSettings
+    }
+
+    public var body: some View {
+        let l10n = L10n(appLanguage)
+        let selected = session.comparisonModel
+        let groups = settingsStore.quickSwitchModelGroups()
+
+        Menu {
+            ForEach(groups, id: \.provider) { group in
+                Section(group.provider.shortName(in: appLanguage)) {
+                    ForEach(group.choices) { choice in
+                        Button {
+                            session.startComparison(with: choice)
+                        } label: {
+                            if choice == selected {
+                                Label(choice.model, systemImage: "checkmark")
+                            } else {
+                                Text(choice.model)
+                            }
+                        }
+                    }
+                }
+            }
+            Divider()
+            Button(l10n.modelSettingsItem, action: onOpenSettings)
+        } label: {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(StageHue.azure.bottom)
+                    .frame(width: 5.5, height: 5.5)
+                Text(
+                    selected.map { compact ? $0.model : $0.displayLabel(in: appLanguage) }
+                        ?? l10n.compareMenuAction
+                )
+                .font(.system(size: compact ? 10.5 : 11.5, weight: .medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                LucideIcon(.chevronDown, size: 9.5, strokeWidth: 2.2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, compact ? 7 : 8)
+            .padding(.vertical, compact ? 2.5 : 3.5)
+            .background(Color.primary.opacity(0.06), in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.75))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(l10n.switchCompareModelTooltip)
+        .accessibilityLabel(l10n.switchCompareModelTooltip)
+    }
+}
+
 public struct ErrorBannerView: View {
     public let message: String
     public let actionTitle: String?

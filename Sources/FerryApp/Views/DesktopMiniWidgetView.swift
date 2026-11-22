@@ -132,7 +132,29 @@ public struct DesktopMiniWidgetView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                     HStack(spacing: 2) {
+                        if session.isFromCache && hasOutput && !session.isTranslating {
+                            CachedResultBadge(compact: true)
+                                .padding(.leading, 3)
+                        }
+                        if session.isModelOverridden && hasOutput && !session.isTranslating {
+                            ModelOverrideBadge(model: session.effectiveResultModel.model, compact: true)
+                                .padding(.leading, session.isFromCache ? 2 : 3)
+                        }
                         Spacer()
+                        if hasOutput && !session.isTranslating {
+                            QuickModelSwitchMenu(
+                                session: session,
+                                settingsStore: settingsStore,
+                                showCompareOption: false,
+                                size: 24,
+                                onOpenSettings: onOpenSettings
+                            )
+                        }
+                        if (session.isFromCache || session.isModelOverridden) && hasOutput && !session.isTranslating {
+                            RetranslateButton(size: 24, bypassCache: session.isFromCache) {
+                                session.retranslate(bypassCache: true)
+                            }
+                        }
                         SpeakButton(
                             speechService: speechService,
                             id: "widget-result",

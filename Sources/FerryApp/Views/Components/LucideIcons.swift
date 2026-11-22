@@ -38,6 +38,9 @@ public struct LucideIcon: View {
         case eyeOff
         case square
         case messageSquareText
+        case zap
+        case columns2
+        case layers
     }
 
     public let name: Name
@@ -559,6 +562,36 @@ private struct LucideStrokeShape: Shape {
             p.addLine(to: g.pt(17, 8))
             p.move(to: g.pt(7, 12))
             p.addLine(to: g.pt(13, 12))
+
+        case .zap:
+            // Lucide zap lightning bolt
+            p.move(to: g.pt(13, 2))
+            p.addLine(to: g.pt(3, 14))
+            p.addLine(to: g.pt(12, 14))
+            p.addLine(to: g.pt(11, 22))
+            p.addLine(to: g.pt(21, 10))
+            p.addLine(to: g.pt(12, 10))
+            p.closeSubpath()
+
+        case .columns2:
+            // Lucide columns-2: <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>
+            g.addRoundedRect(&p, x: 3, y: 3, width: 18, height: 18, radius: 2)
+            p.move(to: g.pt(12, 3))
+            p.addLine(to: g.pt(12, 21))
+
+        case .layers:
+            // Lucide layers (3 stacked diamonds/chevrons)
+            p.move(to: g.pt(12, 2))
+            p.addLine(to: g.pt(2, 7))
+            p.addLine(to: g.pt(12, 12))
+            p.addLine(to: g.pt(22, 7))
+            p.closeSubpath()
+            p.move(to: g.pt(2, 12))
+            p.addLine(to: g.pt(12, 17))
+            p.addLine(to: g.pt(22, 12))
+            p.move(to: g.pt(2, 17))
+            p.addLine(to: g.pt(12, 22))
+            p.addLine(to: g.pt(22, 17))
         }
 
         return p

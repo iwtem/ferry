@@ -219,6 +219,7 @@ struct FerryCoreTests {
         #expect(settings.profiles[.bailian]?.model == "qwen-plus")
         #expect(settings.wordLookupEnabled == true)
         #expect(settings.pdfLineBreakFixEnabled == true)
+        #expect(settings.translationCacheEnabled == true)
         #expect(settings.speech == SpeechSettings())
         #expect(settings.language == .system)
         #expect(settings.screenshotOCREnabled == true)
@@ -228,6 +229,7 @@ struct FerryCoreTests {
         #expect(settings.autoCheckForUpdates == true)
         #expect(settings.autoDownloadUpdates == true)
         #expect(settings.realtimeUpdatePushEnabled == true)
+        #expect(settings.secondaryModel == nil)
         #expect(settings.skippedUpdateVersion == nil)
     }
 
@@ -552,6 +554,249 @@ struct FerryCoreTests {
         """#
         let decodedRecord = try JSONDecoder().decode(TranslationRecord.self, from: Data(legacyRecordJSON.utf8))
         #expect(decodedRecord.mode == .translate)
+    }
+
+    @Test("TranslationLRUCache promotes hits, evicts least-recently-used, and round-trips order")
+    func testTranslationLRUCache() throws {
+        func key(_ text: String) -> TranslationCacheKey {
+            TranslationCacheKey(
+                sourceText: text,
+                resolvedTarget: .zhCN,
+                mode: .translate,
+                provider: .deepseek,
+                model: "deepseek-chat",
+                endpoint: ProviderKind.deepseek.defaultBaseURL,
+                wordLookup: false
+            )
+        }
+
+        var cache = TranslationLRUCache(capacity: 3)
+        #expect(cache.isEmpty)
+        #expect(cache.get(key("missing")) == nil)
+        #expect(cache.hitCount == 0)
+
+        cache.set("一", for: key("one"))
+        cache.set("二", for: key("two"))
+        cache.set("三", for: key("three"))
+        #expect(cache.count == 3)
+        #expect(cache.orderedEntries().map(\.key.sourceText) == ["three", "two", "one"])
+
+        // Access "one" -> promotes it to MRU, making "two" the LRU entry
+        let hit = cache.get(key("one"))
+        #expect(hit?.translatedText == "一")
+        #expect(cache.hitCount == 1)
+        #expect(cache.orderedEntries().map(\.key.sourceText) == ["one", "three", "two"])
+
+        // Peek does not mutate order or hitCount
+        #expect(cache.peek(key("two"))?.translatedText == "二")
+        #expect(cache.hitCount == 1)
+        #expect(cache.orderedEntries().map(\.key.sourceText) == ["one", "three", "two"])
+
+        // Inserting a 4th item evicts "two" (LRU)
+        cache.set("四", for: key("four"))
+        #expect(cache.count == 3)
+        #expect(cache.peek(key("two")) == nil)
+        #expect(cache.orderedEntries().map(\.key.sourceText) == ["four", "one", "three"])
+
+        // Updating an existing item replaces its text and moves it to MRU
+        cache.set("参", for: key("three"))
+        #expect(cache.count == 3)
+        #expect(cache.peek(key("three"))?.translatedText == "参")
+        #expect(cache.orderedEntries().map(\.key.sourceText) == ["three", "four", "one"])
+
+        // Removing head, middle, and tail works cleanly and reuses slots
+        #expect(cache.remove(key("four"))?.translatedText == "四")
+        #expect(cache.orderedEntries().map(\.key.sourceText) == ["three", "one"])
+        #expect(cache.remove(key("three"))?.translatedText == "参")
+        #expect(cache.orderedEntries().map(\.key.sourceText) == ["one"])
+        cache.set("五", for: key("five"))
+        #expect(cache.orderedEntries().map(\.key.sourceText) == ["five", "one"])
+
+        // Empty or excessively long entries are ignored
+        cache.set("   ", for: key("blank"))
+        cache.set("ok", for: key(""))
+        let huge = String(repeating: "a", count: TranslationLRUCache.maxCacheableTextLength + 1)
+        cache.set("too big", for: key(huge))
+        #expect(cache.count == 2)
+
+        // JSON persistence round-trip preserves MRU-to-LRU order and respects capacity
+        let encoded = try JSONEncoder().encode(cache.orderedEntries())
+        let decoded = try JSONDecoder().decode([TranslationCacheEntry].self, from: encoded)
+        var restored = TranslationLRUCache(capacity: 2)
+        restored.load(entries: decoded + decoded) // duplicate entries ignored
+        #expect(restored.count == 2)
+        #expect(restored.orderedEntries().map(\.key.sourceText) == ["five", "one"])
+
+        // Capacity 1 edge case
+        var single = TranslationLRUCache(capacity: 1)
+        single.set("A", for: key("a"))
+        single.set("A2", for: key("a"))
+        #expect(single.count == 1)
+        #expect(single.get(key("a"))?.translatedText == "A2")
+        single.set("B", for: key("b"))
+        #expect(single.count == 1)
+        #expect(single.peek(key("a")) == nil)
+        #expect(single.peek(key("b"))?.translatedText == "B")
+        single.clear()
+        #expect(single.isEmpty)
+        #expect(single.hitCount == 0)
+    }
+
+    @Test("TranslationCacheKey canonicalizes auto target, endpoints, and word lookup applicability")
+    func testTranslationCacheKeyCanonicalization() {
+        let profile = ProviderProfile(
+            baseURL: "https://api.deepseek.com/v1/chat/completions",
+            model: "deepseek-chat"
+        )
+        let profileSlash = ProviderProfile(
+            baseURL: "https://api.deepseek.com/v1///",
+            model: "deepseek-chat"
+        )
+        let cfgLookup = TranslationRequestConfig(
+            provider: .deepseek, profile: profile, apiKey: "sk-test", wordLookup: true, mode: .translate
+        )
+        let cfgNoLookup = TranslationRequestConfig(
+            provider: .deepseek, profile: profileSlash, apiKey: "sk-test", wordLookup: false, mode: .translate
+        )
+
+        // Auto-resolved English -> zhCN matches explicit zhCN, and endpoint/whitespace normalize identically
+        let autoSentence = TranslationCacheKey.make(text: "  Hello, how are you? \n", targetLanguage: .auto, config: cfgLookup)
+        let explicitSentence = TranslationCacheKey.make(text: "Hello, how are you?", targetLanguage: .zhCN, config: cfgNoLookup)
+        #expect(autoSentence == explicitSentence)
+        #expect(autoSentence.wordLookup == false)
+
+        // Single lookup term distinguishes wordLookup enabled vs disabled
+        let wordWithDict = TranslationCacheKey.make(text: "raven", targetLanguage: .auto, config: cfgLookup)
+        let wordPlain = TranslationCacheKey.make(text: "raven", targetLanguage: .zhCN, config: cfgNoLookup)
+        #expect(wordWithDict != wordPlain)
+        #expect(wordWithDict.wordLookup == true)
+        #expect(wordPlain.wordLookup == false)
+
+        // Writing mode with .auto preserves source language (resolvedTarget == nil), distinct from explicit .en
+        let polishCfg = TranslationRequestConfig(
+            provider: .deepseek, profile: profile, apiKey: "sk-test", wordLookup: true, mode: .polish
+        )
+        let polishAuto = TranslationCacheKey.make(text: "raven", targetLanguage: .auto, config: polishCfg)
+        let polishEN = TranslationCacheKey.make(text: "raven", targetLanguage: .en, config: polishCfg)
+        #expect(polishAuto.resolvedTarget == nil)
+        #expect(polishAuto.wordLookup == false)
+        #expect(polishEN.resolvedTarget == .en)
+        #expect(polishAuto != polishEN)
+
+        // Dedicated MT models ignore wordLookup
+        let mtProfile = ProviderProfile(baseURL: ProviderKind.bailian.defaultBaseURL, model: "qwen-mt-turbo")
+        let mtOn = TranslationCacheKey.make(
+            text: "raven",
+            targetLanguage: .zhCN,
+            config: TranslationRequestConfig(provider: .bailian, profile: mtProfile, apiKey: "sk", wordLookup: true)
+        )
+        let mtOff = TranslationCacheKey.make(
+            text: "raven",
+            targetLanguage: .zhCN,
+            config: TranslationRequestConfig(provider: .bailian, profile: mtProfile, apiKey: "sk", wordLookup: false)
+        )
+        #expect(mtOn == mtOff)
+        #expect(mtOn.wordLookup == false)
+    }
+
+    @Test("SettingsStore persists LRU cache to disk, respects toggle, and supports clear")
+    @MainActor
+    func testSettingsStoreTranslationCachePersistence() {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ferry-cache-test-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let store = SettingsStore(directory: tempDir, cacheCapacity: 2)
+        let cfg = TranslationRequestConfig(
+            provider: .deepseek,
+            profile: store.profile(for: .deepseek),
+            apiKey: "sk-test",
+            wordLookup: false,
+            mode: .translate
+        )
+        let keyA = TranslationCacheKey.make(text: "Hello world.", targetLanguage: .auto, config: cfg)
+        let keyB = TranslationCacheKey.make(text: "Good morning.", targetLanguage: .auto, config: cfg)
+        let keyC = TranslationCacheKey.make(text: "Good night.", targetLanguage: .auto, config: cfg)
+
+        store.cacheTranslation("你好，世界。", for: keyA)
+        store.cacheTranslation("早上好。", for: keyB)
+        #expect(store.cachedTranslationCount == 2)
+        #expect(store.cachedTranslation(for: keyA) == "你好，世界。")
+        #expect(store.cacheHitCount == 1)
+
+        // Inserting keyC evicts keyB because keyA was just accessed
+        store.cacheTranslation("晚安。", for: keyC)
+        #expect(store.cachedTranslationCount == 2)
+        #expect(store.cachedTranslation(for: keyB) == nil)
+        #expect(store.cachedTranslation(for: keyA) == "你好，世界。")
+        store.flushTranslationCache()
+
+        // Reloading from the same directory restores persisted LRU cache
+        let reloaded = SettingsStore(directory: tempDir, cacheCapacity: 2)
+        #expect(reloaded.cachedTranslationCount == 2)
+        #expect(reloaded.cachedTranslation(for: keyA) == "你好，世界。")
+        #expect(reloaded.cachedTranslation(for: keyC) == "晚安。")
+        #expect(reloaded.cachedTranslation(for: keyB) == nil)
+
+        // Disabling cache bypasses lookups and writes
+        reloaded.settings.translationCacheEnabled = false
+        #expect(reloaded.cachedTranslation(for: keyA) == nil)
+        reloaded.cacheTranslation("早安。", for: keyB)
+        reloaded.settings.translationCacheEnabled = true
+        #expect(reloaded.cachedTranslation(for: keyB) == nil)
+
+        // Clear removes in-memory and persisted entries
+        reloaded.clearTranslationCache()
+        #expect(reloaded.cachedTranslationCount == 0)
+        #expect(reloaded.cacheHitCount == 0)
+        let afterClear = SettingsStore(directory: tempDir, cacheCapacity: 2)
+        #expect(afterClear.cachedTranslationCount == 0)
+    }
+
+    @Test("ModelChoice selection, secondary model suggestion, and profile pinning work across providers")
+    @MainActor
+    func testModelChoiceAndSecondarySuggestion() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ferry-model-choice-test-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let store = SettingsStore(directory: tempDir)
+        store.setAPIKey("sk-deepseek", for: .deepseek)
+
+        // With only DeepSeek configured on deepseek-chat, suggested secondary picks deepseek-reasoner
+        #expect(store.activeModelChoice == ModelChoice(provider: .deepseek, model: "deepseek-chat"))
+        #expect(store.suggestedSecondaryModel() == ModelChoice(provider: .deepseek, model: "deepseek-reasoner"))
+
+        // Adding Bailian key prefers cross-provider comparison when no explicit preference is set
+        store.setAPIKey("sk-bailian", for: .bailian)
+        #expect(store.suggestedSecondaryModel() == ModelChoice(provider: .bailian, model: "qwen-plus"))
+
+        // Explicit secondaryModel overrides auto-suggestion unless identical to primary
+        let explicit = ModelChoice(provider: .bailian, model: "qwen-max")
+        store.settings.secondaryModel = explicit
+        #expect(store.suggestedSecondaryModel() == explicit)
+        #expect(store.suggestedSecondaryModel(for: explicit) != explicit)
+
+        // profile(for:) pins the chosen model while clearing customModel override & keeping baseURL
+        var customDeepSeek = store.profile(for: .deepseek)
+        customDeepSeek.baseURL = "https://proxy.example.com/v1"
+        customDeepSeek.customModel = "deepseek-v3"
+        store.updateProfile(customDeepSeek, for: .deepseek)
+        let pinned = store.profile(for: ModelChoice(provider: .deepseek, model: "deepseek-reasoner"))
+        #expect(pinned.effectiveModel == "deepseek-reasoner")
+        #expect(pinned.baseURL == "https://proxy.example.com/v1")
+
+        // quickSwitchModelGroups puts active provider first and includes other configured providers
+        let groups = store.quickSwitchModelGroups()
+        #expect(groups.map(\.provider) == [.deepseek, .bailian])
+        #expect(groups[1].choices.contains(explicit))
+
+        // Codable round-trip for ModelChoice & AppSettings.secondaryModel
+        let encoded = try JSONEncoder().encode(store.settings)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: encoded)
+        #expect(decoded.secondaryModel == explicit)
+        #expect(explicit.displayLabel(in: .zhHans) == "阿里百炼 · qwen-max")
+        #expect(explicit.displayLabel(in: .en) == "Bailian · qwen-max")
     }
 
     @Test("OCRService recognizes rendered text on a CGImage via Apple Vision")

@@ -61,6 +61,10 @@ public struct MainWindowView: View {
         !session.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var hasComparisonResult: Bool {
+        !session.comparisonText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var lang: ResolvedAppLanguage { settingsStore.resolvedLanguage }
     private var l10n: L10n { L10n(lang) }
 
@@ -76,7 +80,15 @@ public struct MainWindowView: View {
                     languageBar
                     HStack(spacing: 12) {
                         sourceCard
-                        resultCard
+                        VStack(spacing: 10) {
+                            resultCard
+                            if session.isComparing {
+                                comparisonCard
+                                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .animation(FerryMotion.animation(FerryMotion.spring), value: session.isComparing)
                     }
                     if let updateService {
                         UpdateBannerView(updateService: updateService)
@@ -315,6 +327,25 @@ public struct MainWindowView: View {
 
     private var resultCard: some View {
         VStack(spacing: 0) {
+            if session.isComparing {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(FerryTheme.accent)
+                        .frame(width: 5.5, height: 5.5)
+                    Text(session.effectiveResultModel.displayLabel(in: lang))
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 9)
+                .padding(.bottom, 4)
+
+                Rectangle().fill(Stage.hairline).frame(height: 1)
+            }
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     if let error = session.errorMessage {
@@ -343,7 +374,7 @@ public struct MainWindowView: View {
                     } else if !hasResult && session.isTranslating {
                         HStack(spacing: 8) {
                             ProgressView().controlSize(.small)
-                            Text(l10n.providerTranslating(settingsStore.settings.activeProvider))
+                            Text(l10n.providerTranslating(session.effectiveResultModel.provider))
                                 .font(.system(size: 13.5))
                                 .foregroundStyle(.secondary)
                         }
@@ -357,7 +388,7 @@ public struct MainWindowView: View {
                     }
                 }
                 .padding(.horizontal, 14)
-                .padding(.top, 12)
+                .padding(.top, session.isComparing ? 10 : 12)
                 .padding(.bottom, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .animation(FerryMotion.animation(FerryMotion.quick), value: hasResult)
@@ -376,9 +407,34 @@ public struct MainWindowView: View {
                         .font(.system(size: 11))
                         .monospacedDigit()
                         .foregroundStyle(.tertiary)
+                    if session.isFromCache {
+                        CachedResultBadge()
+                    }
+                    if session.isModelOverridden && !session.isComparing {
+                        ModelOverrideBadge(model: session.effectiveResultModel.model)
+                    }
                 }
                 Spacer()
                 HStack(spacing: 4) {
+                    if hasResult && !session.isTranslating {
+                        QuickModelSwitchMenu(
+                            session: session,
+                            settingsStore: settingsStore,
+                            showCompareOption: !session.isComparing,
+                            size: 26,
+                            onOpenSettings: onOpenSettings
+                        )
+                        CompareToggleButton(
+                            session: session,
+                            settingsStore: settingsStore,
+                            size: 26
+                        )
+                    }
+                    if (session.isFromCache || session.isModelOverridden) && hasResult && !session.isTranslating {
+                        RetranslateButton(size: 26, bypassCache: session.isFromCache) {
+                            session.retranslate(bypassCache: true)
+                        }
+                    }
                     SpeakButton(
                         speechService: speechService,
                         id: "main-result",
@@ -396,6 +452,128 @@ public struct MainWindowView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassSurface(cornerRadius: 16, fill: FerryTheme.accent.opacity(0.07))
+    }
+
+    private var comparisonCard: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                ComparisonModelPicker(
+                    session: session,
+                    settingsStore: settingsStore,
+                    onOpenSettings: onOpenSettings
+                )
+                Spacer(minLength: 4)
+                if hasComparisonResult && !session.isComparisonTranslating {
+                    Button(l10n.adoptComparisonButton) {
+                        withAnimation(FerryMotion.animation(FerryMotion.spring)) {
+                            session.adoptComparisonResult()
+                        }
+                    }
+                    .buttonStyle(GlassButtonStyle(kind: .glass, height: 22))
+                    .help(l10n.adoptComparisonTooltip)
+                }
+                Button {
+                    withAnimation(FerryMotion.animation(FerryMotion.spring)) {
+                        session.closeComparison()
+                    }
+                } label: {
+                    LucideIcon(.x, size: 12.5)
+                }
+                .buttonStyle(HoverIconButtonStyle(size: 22))
+                .help(l10n.closeCompareTooltip)
+                .accessibilityLabel(l10n.closeCompareTooltip)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
+
+            Rectangle().fill(Stage.hairline).frame(height: 1)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let error = session.comparisonErrorMessage {
+                        ErrorBannerView(
+                            message: error,
+                            showSettingsAction: error.contains("API Key") || error.contains("401"),
+                            onOpenSettings: onOpenSettings
+                        )
+                    } else if !hasComparisonResult && session.isComparisonTranslating {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text(l10n.providerTranslating(session.comparisonModel?.provider ?? settingsStore.settings.activeProvider))
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if hasComparisonResult {
+                        Text(session.comparisonText)
+                            .font(.system(size: 14.5))
+                            .lineSpacing(4.5)
+                            .foregroundStyle(.primary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Text(l10n.translationPlaceholder)
+                            .font(.system(size: 14.5))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 8) {
+                if session.isComparisonTranslating {
+                    ProgressView().controlSize(.mini)
+                    Text(l10n.generating)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                } else if hasComparisonResult {
+                    Text(l10n.characterCount(session.comparisonText.count))
+                        .font(.system(size: 11))
+                        .monospacedDigit()
+                        .foregroundStyle(.tertiary)
+                    if session.isComparisonFromCache {
+                        CachedResultBadge()
+                    }
+                }
+                Spacer()
+                HStack(spacing: 4) {
+                    if session.isComparisonTranslating {
+                        Button(l10n.stop) {
+                            session.cancelComparison()
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.red)
+                    } else {
+                        RetranslateButton(
+                            size: 26,
+                            bypassCache: session.isComparisonFromCache,
+                            disabled: !hasSource
+                        ) {
+                            session.retranslateComparison(bypassCache: true)
+                        }
+                    }
+                    SpeakButton(
+                        speechService: speechService,
+                        id: "main-compare-result",
+                        text: session.comparisonText,
+                        languageHint: session.outputLanguageHint,
+                        help: l10n.speakTranslation
+                    )
+                    CopyResultButton(copied: session.comparisonCopiedRecently, disabled: !hasComparisonResult) {
+                        session.copyComparisonTranslation()
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .glassSurface(cornerRadius: 16, fill: StageHue.azure.bottom.opacity(0.065))
     }
 
     @ViewBuilder

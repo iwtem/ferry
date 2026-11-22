@@ -46,13 +46,31 @@ enum UISnapshot {
                 sourceText: s.0, translatedText: s.1,
                 targetLanguage: .auto, resolvedLanguage: i == 0 ? .zhCN : .en, provider: .deepseek, model: "deepseek-chat"
             ))
+            let key = TranslationCacheKey(
+                sourceText: s.0,
+                resolvedTarget: i == 0 ? .zhCN : .en,
+                mode: .translate,
+                provider: .deepseek,
+                model: "deepseek-chat",
+                endpoint: ProviderKind.deepseek.defaultBaseURL,
+                wordLookup: false
+            )
+            store.cacheTranslation(s.1, for: key)
         }
 
-        func session() -> TranslatorSession {
+        func session(cached: Bool = false, comparing: Bool = false) -> TranslatorSession {
             let session = TranslatorSession(settingsStore: store, translatorService: service)
             session.sourceText = sampleSource
             session.translatedText = sampleResult
             session.resolvedLanguage = .zhCN
+            session.isFromCache = cached
+            session.activeResultModel = ModelChoice(provider: .deepseek, model: "deepseek-chat")
+            if comparing {
+                session.isComparing = true
+                session.comparisonModel = ModelChoice(provider: .deepseek, model: "deepseek-reasoner")
+                session.comparisonText = "翻译是指通过语义对等的目标语言文本，准确传达源语言文本含义的过程。"
+                session.isComparisonFromCache = false
+            }
             return session
         }
 
@@ -61,16 +79,30 @@ enum UISnapshot {
 
         for (appearanceName, appearance) in [("light", NSAppearance.Name.aqua), ("dark", NSAppearance.Name.darkAqua)] {
             render(
-                MainWindowView(session: session(), settingsStore: store, copyMonitor: copyMonitor, speechService: speechService, uiState: mainState,
+                MainWindowView(session: session(cached: true), settingsStore: store, copyMonitor: copyMonitor, speechService: speechService, uiState: mainState,
                                onToggleDesktopWidget: {}, onOpenSettings: {}),
                 size: NSSize(width: 980, height: 560), appearance: appearance,
                 to: outputDir.appendingPathComponent("main-\(appearanceName).png")
             )
+            let compareMainState = MainWindowUIState()
+            compareMainState.showHistory = false
             render(
-                MenuBarPopoverView(session: session(), settingsStore: store, speechService: speechService,
+                MainWindowView(session: session(cached: true, comparing: true), settingsStore: store, copyMonitor: copyMonitor, speechService: speechService, uiState: compareMainState,
+                               onToggleDesktopWidget: {}, onOpenSettings: {}),
+                size: NSSize(width: 940, height: 600), appearance: appearance,
+                to: outputDir.appendingPathComponent("main-compare-\(appearanceName).png")
+            )
+            render(
+                MenuBarPopoverView(session: session(cached: true), settingsStore: store, speechService: speechService,
                                    onOpenMainWindow: {}, onToggleDesktopWidget: {}, onOpenSettings: {}, onQuit: {}),
                 size: nil, appearance: appearance,
                 to: outputDir.appendingPathComponent("popover-\(appearanceName).png")
+            )
+            render(
+                MenuBarPopoverView(session: session(cached: true, comparing: true), settingsStore: store, speechService: speechService,
+                                   onOpenMainWindow: {}, onToggleDesktopWidget: {}, onOpenSettings: {}, onQuit: {}),
+                size: nil, appearance: appearance,
+                to: outputDir.appendingPathComponent("popover-compare-\(appearanceName).png")
             )
             render(
                 MenuBarPopoverView(session: TranslatorSession(settingsStore: store, translatorService: service), settingsStore: store,
@@ -82,14 +114,21 @@ enum UISnapshot {
             let popupState = QuickPopupUIState()
             popupState.sourceAppName = "Safari"
             render(
-                QuickPopupView(session: session(), settingsStore: store, speechService: speechService, uiState: popupState,
+                QuickPopupView(session: session(cached: true), settingsStore: store, speechService: speechService, uiState: popupState,
                                onTogglePin: { _ in }, onOpenInMainWindow: {}, onOpenSettings: {},
                                onReplaceInSourceApp: {}, onClose: {}),
                 size: nil, appearance: appearance,
                 to: outputDir.appendingPathComponent("popup-\(appearanceName).png")
             )
             render(
-                DesktopMiniWidgetView(session: session(), settingsStore: store, speechService: speechService,
+                QuickPopupView(session: session(cached: true, comparing: true), settingsStore: store, speechService: speechService, uiState: popupState,
+                               onTogglePin: { _ in }, onOpenInMainWindow: {}, onOpenSettings: {},
+                               onReplaceInSourceApp: {}, onClose: {}),
+                size: nil, appearance: appearance,
+                to: outputDir.appendingPathComponent("popup-compare-\(appearanceName).png")
+            )
+            render(
+                DesktopMiniWidgetView(session: session(cached: true), settingsStore: store, speechService: speechService,
                                       onToggleAlwaysOnTop: { _ in }, onOpenInMainWindow: {}, onOpenSettings: {}, onClose: {}),
                 size: nil, appearance: appearance,
                 to: outputDir.appendingPathComponent("widget-\(appearanceName).png")
