@@ -88,6 +88,11 @@ public struct MenuBarPopoverView: View {
                 session.translate()
             }
         }
+        .onChange(of: hasSource) { wasNonEmpty, isNowNonEmpty in
+            if wasNonEmpty && !isNowNonEmpty {
+                speechService.stop()
+            }
+        }
     }
 
     // MARK: - Header
@@ -110,7 +115,7 @@ public struct MenuBarPopoverView: View {
             headerButton(.pictureInPicture2, help: l10n.miniWidgetTooltip, action: onToggleDesktopWidget)
             headerButton(.maximize2, help: l10n.openInMainWindowTooltip, action: onOpenMainWindow)
             headerButton(.settings, help: l10n.settings, action: onOpenSettings)
-            headerButton(.power, help: l10n.quitFerry, action: onQuit)
+            headerButton(.logOut, help: l10n.quitFerry, action: onQuit)
         }
     }
 

@@ -31,6 +31,10 @@ public struct DesktopMiniWidgetView: View {
         self.onClose = onClose
     }
 
+    private var hasSource: Bool {
+        !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var lang: ResolvedAppLanguage { settingsStore.resolvedLanguage }
     private var l10n: L10n { L10n(lang) }
 
@@ -212,13 +216,18 @@ public struct DesktopMiniWidgetView: View {
                 .stroke(Color.primary.opacity(0.16), lineWidth: 1)
         )
         .onChange(of: session.targetLanguage) { _, _ in
-            if !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if hasSource {
                 session.translate()
             }
         }
         .onChange(of: session.mode) { _, _ in
-            if !session.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if hasSource {
                 session.translate()
+            }
+        }
+        .onChange(of: hasSource) { wasNonEmpty, isNowNonEmpty in
+            if wasNonEmpty && !isNowNonEmpty {
+                speechService.stop()
             }
         }
     }

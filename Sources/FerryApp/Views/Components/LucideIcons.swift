@@ -20,6 +20,7 @@ public struct LucideIcon: View {
         case maximize2
         case settings
         case power
+        case logOut
         case history
         case pin
         case rotateCw
@@ -156,6 +157,27 @@ private struct LucideGrid {
         )
         p.addEllipse(in: rect)
     }
+
+    /// Appends a standalone open circular arc without connecting it to the previous subpath.
+    func addOpenArc(
+        _ p: inout Path,
+        cx: CGFloat,
+        cy: CGFloat,
+        radius: CGFloat,
+        startDegrees: Double,
+        endDegrees: Double,
+        clockwise: Bool
+    ) {
+        let startRad = startDegrees * .pi / 180.0
+        p.move(to: pt(cx + radius * CGFloat(cos(startRad)), cy + radius * CGFloat(sin(startRad))))
+        p.addArc(
+            center: pt(cx, cy),
+            radius: r(radius),
+            startAngle: .degrees(startDegrees),
+            endAngle: .degrees(endDegrees),
+            clockwise: clockwise
+        )
+    }
 }
 
 // MARK: - Lucide 24×24 Vector Paths
@@ -187,26 +209,9 @@ private struct LucideStrokeShape: Shape {
 
         case .volume2:
             Self.addSpeakerBody(to: &p, g: g)
-            // Inner wave: M16 9 a5 5 0 0 1 0 6 (center 12,12 r=5, -36.87°..36.87°)
-            var w1 = Path()
-            w1.addArc(
-                center: g.pt(12, 12),
-                radius: g.r(5),
-                startAngle: .degrees(-36.87),
-                endAngle: .degrees(36.87),
-                clockwise: false
-            )
-            p.addPath(w1)
-            // Outer wave: M19.364 18.364 a9 9 0 0 0 0 -12.728 (center 13,12 r=9, -45°..45°)
-            var w2 = Path()
-            w2.addArc(
-                center: g.pt(13, 12),
-                radius: g.r(9),
-                startAngle: .degrees(-45),
-                endAngle: .degrees(45),
-                clockwise: false
-            )
-            p.addPath(w2)
+            // Concentric inner & outer sound waves (explicit move prevents stray connecting lines)
+            g.addOpenArc(&p, cx: 12, cy: 12, radius: 4.6, startDegrees: -40, endDegrees: 40, clockwise: false)
+            g.addOpenArc(&p, cx: 12.5, cy: 12, radius: 8.9, startDegrees: -45, endDegrees: 45, clockwise: false)
 
         case .volumeX:
             Self.addSpeakerBody(to: &p, g: g)
@@ -361,28 +366,26 @@ private struct LucideStrokeShape: Shape {
         case .power:
             p.move(to: g.pt(12, 2))
             p.addLine(to: g.pt(12, 12))
-            var ring = Path()
-            ring.addArc(
-                center: g.pt(12, 13),
-                radius: g.r(8.6),
-                startAngle: .degrees(-44),
-                endAngle: .degrees(224),
-                clockwise: false
-            )
-            p.addPath(ring)
+            g.addOpenArc(&p, cx: 12, cy: 13, radius: 8.6, startDegrees: -44, endDegrees: 224, clockwise: false)
+
+        case .logOut:
+            // Lucide log-out: door frame on left + exit arrow pointing right
+            p.move(to: g.pt(9, 21))
+            p.addLine(to: g.pt(5, 21))
+            p.addQuadCurve(to: g.pt(3, 19), control: g.pt(3, 21))
+            p.addLine(to: g.pt(3, 5))
+            p.addQuadCurve(to: g.pt(5, 3), control: g.pt(3, 3))
+            p.addLine(to: g.pt(9, 3))
+            p.move(to: g.pt(16, 17))
+            p.addLine(to: g.pt(21, 12))
+            p.addLine(to: g.pt(16, 7))
+            p.move(to: g.pt(21, 12))
+            p.addLine(to: g.pt(9, 12))
 
         case .history:
             // Counter-clockwise arc from 180° (9 o'clock) through bottom, right, top to -138° + tail to (3,8)
-            var arc = Path()
-            arc.addArc(
-                center: g.pt(12, 12),
-                radius: g.r(9),
-                startAngle: .degrees(180),
-                endAngle: .degrees(-138),
-                clockwise: true
-            )
-            arc.addLine(to: g.pt(3, 8))
-            p.addPath(arc)
+            g.addOpenArc(&p, cx: 12, cy: 12, radius: 9, startDegrees: 180, endDegrees: -138, clockwise: true)
+            p.addLine(to: g.pt(3, 8))
             p.move(to: g.pt(3, 3))
             p.addLine(to: g.pt(3, 8))
             p.addLine(to: g.pt(8, 8))
@@ -393,31 +396,15 @@ private struct LucideStrokeShape: Shape {
 
         case .rotateCw:
             // Clockwise arc from 0° (3 o'clock) through bottom, left, top to 318° (-42°) + tail to (21,8)
-            var arc = Path()
-            arc.addArc(
-                center: g.pt(12, 12),
-                radius: g.r(9),
-                startAngle: .degrees(0),
-                endAngle: .degrees(318),
-                clockwise: false
-            )
-            arc.addLine(to: g.pt(21, 8))
-            p.addPath(arc)
+            g.addOpenArc(&p, cx: 12, cy: 12, radius: 9, startDegrees: 0, endDegrees: 318, clockwise: false)
+            p.addLine(to: g.pt(21, 8))
             p.move(to: g.pt(21, 3))
             p.addLine(to: g.pt(21, 8))
             p.addLine(to: g.pt(16, 8))
 
         case .rotateCcw:
-            var arc = Path()
-            arc.addArc(
-                center: g.pt(12, 12),
-                radius: g.r(9),
-                startAngle: .degrees(180),
-                endAngle: .degrees(-138),
-                clockwise: true
-            )
-            arc.addLine(to: g.pt(3, 8))
-            p.addPath(arc)
+            g.addOpenArc(&p, cx: 12, cy: 12, radius: 9, startDegrees: 180, endDegrees: -138, clockwise: true)
+            p.addLine(to: g.pt(3, 8))
             p.move(to: g.pt(3, 3))
             p.addLine(to: g.pt(3, 8))
             p.addLine(to: g.pt(8, 8))

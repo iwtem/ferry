@@ -126,6 +126,11 @@ public struct MainWindowView: View {
                 session.translate()
             }
         }
+        .onChange(of: hasSource) { wasNonEmpty, isNowNonEmpty in
+            if wasNonEmpty && !isNowNonEmpty {
+                speechService.stop()
+            }
+        }
     }
 
     // MARK: - Header

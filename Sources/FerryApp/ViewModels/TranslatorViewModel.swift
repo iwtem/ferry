@@ -6,7 +6,15 @@ import Observation
 @MainActor
 @Observable
 public final class TranslatorSession {
-    public var sourceText: String = ""
+    public var sourceText: String = "" {
+        didSet {
+            let wasEmpty = oldValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let isEmpty = sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if !wasEmpty && isEmpty && !isRecognizingOCR {
+                clearOutput()
+            }
+        }
+    }
     public var translatedText: String = ""
     public var targetLanguage: TargetLanguage
     public var resolvedLanguage: TargetLanguage = .zhCN
@@ -240,15 +248,32 @@ public final class TranslatorSession {
     public func clear() {
         cancel()
         sourceText = ""
+        clearOutput()
+    }
+
+    /// Resets all translation outputs, errors, and in-flight requests without touching `sourceText` or OCR state.
+    private func clearOutput() {
+        activeTask?.cancel()
+        activeTask = nil
+        comparisonTask?.cancel()
+        comparisonTask = nil
+        copyFeedbackTask?.cancel()
+        copyFeedbackTask = nil
+        comparisonCopyFeedbackTask?.cancel()
+        comparisonCopyFeedbackTask = nil
+        isTranslating = false
+        isComparisonTranslating = false
         translatedText = ""
         errorMessage = nil
         needsScreenRecordingPermission = false
         needsAccessibilityPermission = false
+        copiedRecently = false
         isFromCache = false
         activeResultModel = nil
         comparisonText = ""
         comparisonErrorMessage = nil
         isComparisonFromCache = false
+        comparisonCopiedRecently = false
     }
 
     public func copyTranslation() {
