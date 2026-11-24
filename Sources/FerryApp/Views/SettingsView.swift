@@ -910,6 +910,12 @@ public struct SettingsView: View {
                             set: { settingsStore.settings.pdfLineBreakFixEnabled = $0 }
                         ))
                     }
+                    GlassRow(title: l10n.preserveFormatting, caption: l10n.preserveFormattingCaption) {
+                        GlassToggle(isOn: Binding(
+                            get: { settingsStore.settings.preserveFormattingEnabled },
+                            set: { settingsStore.settings.preserveFormattingEnabled = $0 }
+                        ))
+                    }
                     GlassRow(title: l10n.translationCache, caption: l10n.translationCacheToggleCaption, divider: false) {
                         GlassToggle(isOn: Binding(
                             get: { settingsStore.settings.translationCacheEnabled },

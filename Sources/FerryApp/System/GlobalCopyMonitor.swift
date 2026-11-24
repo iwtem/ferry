@@ -10,7 +10,7 @@ import Observation
 public final class GlobalCopyMonitor {
     public var isAccessibilityTrusted: Bool = false
     public var isSuppressed: Bool = false
-    public var onDoubleCopy: ((String, NSPoint, NSRunningApplication?) -> Void)?
+    public var onDoubleCopy: ((CapturedContent, NSPoint, NSRunningApplication?) -> Void)?
 
     private var globalMonitor: Any?
     private var localMonitor: Any?
@@ -162,16 +162,16 @@ public final class GlobalCopyMonitor {
 
         pendingReadTask?.cancel()
         pendingReadTask = Task { [weak self] in
-            // Wait briefly for the frontmost app to finish writing the copied string to NSPasteboard
+            // Wait briefly for the frontmost app to finish writing the copied data to NSPasteboard
             try? await Task.sleep(for: .milliseconds(90))
-            guard !Task.isCancelled else { return }
-            guard let text = NSPasteboard.general.string(forType: .string)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                  !text.isEmpty
-            else {
+            guard !Task.isCancelled, let self else { return }
+            guard let captured = RichClipboardService.readContent(
+                from: .general,
+                preserveFormatting: self.settingsStore.settings.preserveFormattingEnabled
+            ) else {
                 return
             }
-            self?.onDoubleCopy?(text, mouseLocation, sourceApp)
+            self.onDoubleCopy?(captured, mouseLocation, sourceApp)
         }
     }
 }

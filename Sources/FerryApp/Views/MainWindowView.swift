@@ -255,6 +255,10 @@ public struct MainWindowView: View {
                 submitOnEnter: false,
                 fontSize: 15,
                 focusTrigger: uiState.focusTrigger,
+                preserveFormatting: settingsStore.settings.preserveFormattingEnabled,
+                onPasteContent: { captured in
+                    session.sourceFormat = captured.format
+                },
                 onSubmit: {
                     session.translate()
                 }
@@ -268,18 +272,25 @@ public struct MainWindowView: View {
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
 
+                if session.sourceFormat == .richText && hasSource {
+                    StructuredFormatBadge(compact: true)
+                }
+
                 Spacer()
 
                 SpeakButton(
                     speechService: speechService,
                     id: "main-source",
-                    text: session.sourceText,
+                    text: session.speakableSourceText,
                     help: l10n.speakSource
                 )
 
                 IconButton(icon: .clipboardPaste, help: l10n.pasteAndTranslateTooltip) {
-                    if let clip = NSPasteboard.general.string(forType: .string), !clip.isEmpty {
-                        session.translate(text: clip)
+                    if let captured = RichClipboardService.readContent(
+                        from: .general,
+                        preserveFormatting: settingsStore.settings.preserveFormattingEnabled
+                    ) {
+                        session.translate(content: captured)
                     } else if let image = ScreenCaptureService.imageFromPasteboard() {
                         onPasteImageOCR(image)
                     }
@@ -384,12 +395,12 @@ public struct MainWindowView: View {
                                 .foregroundStyle(.secondary)
                         }
                     } else {
-                        Text(session.translatedText)
-                            .font(.system(size: 15))
-                            .lineSpacing(5)
-                            .foregroundStyle(.primary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        StructuredResultView(
+                            text: session.translatedText,
+                            fontSize: 15,
+                            lineSpacing: 5,
+                            showRawMarkdown: session.showRawMarkdown
+                        )
                     }
                 }
                 .padding(.horizontal, 14)
@@ -440,14 +451,25 @@ public struct MainWindowView: View {
                             session.retranslate(bypassCache: true)
                         }
                     }
+                    if hasResult && session.hasStructuredOutput {
+                        MarkdownModeToggleButton(showRawMarkdown: $session.showRawMarkdown, size: 26)
+                    }
                     SpeakButton(
                         speechService: speechService,
                         id: "main-result",
-                        text: session.translatedText,
+                        text: session.speakableTranslatedText,
                         languageHint: session.outputLanguageHint,
                         help: l10n.speakTranslation
                     )
-                    CopyResultButton(copied: session.copiedRecently, disabled: !hasResult) {
+                    CopyResultButton(
+                        copied: session.copiedRecently,
+                        disabled: !hasResult,
+                        autoFormat: session.resolvedAutoCopyFormat,
+                        isStructured: session.hasStructuredOutput,
+                        onCopyFormat: { format in
+                            session.copyTranslation(as: format)
+                        }
+                    ) {
                         session.copyTranslation()
                     }
                 }
@@ -510,12 +532,12 @@ public struct MainWindowView: View {
                                 .foregroundStyle(.secondary)
                         }
                     } else if hasComparisonResult {
-                        Text(session.comparisonText)
-                            .font(.system(size: 14.5))
-                            .lineSpacing(4.5)
-                            .foregroundStyle(.primary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        StructuredResultView(
+                            text: session.comparisonText,
+                            fontSize: 14.5,
+                            lineSpacing: 4.5,
+                            showRawMarkdown: session.showRawMarkdown
+                        )
                     } else {
                         Text(l10n.translationPlaceholder)
                             .font(.system(size: 14.5))
@@ -562,14 +584,25 @@ public struct MainWindowView: View {
                             session.retranslateComparison(bypassCache: true)
                         }
                     }
+                    if hasComparisonResult && session.hasStructuredComparisonOutput {
+                        MarkdownModeToggleButton(showRawMarkdown: $session.showRawMarkdown, size: 26)
+                    }
                     SpeakButton(
                         speechService: speechService,
                         id: "main-compare-result",
-                        text: session.comparisonText,
+                        text: session.speakableComparisonText,
                         languageHint: session.outputLanguageHint,
                         help: l10n.speakTranslation
                     )
-                    CopyResultButton(copied: session.comparisonCopiedRecently, disabled: !hasComparisonResult) {
+                    CopyResultButton(
+                        copied: session.comparisonCopiedRecently,
+                        disabled: !hasComparisonResult,
+                        autoFormat: session.resolvedComparisonCopyFormat,
+                        isStructured: session.hasStructuredComparisonOutput,
+                        onCopyFormat: { format in
+                            session.copyComparisonTranslation(as: format)
+                        }
+                    ) {
                         session.copyComparisonTranslation()
                     }
                 }
@@ -657,11 +690,15 @@ public struct MainWindowView: View {
                                 session.loadRecord(record)
                             } label: {
                                 VStack(alignment: .leading, spacing: 5) {
-                                    Text(record.sourceText)
+                                    Text(MarkdownDocument.hasStructure(record.sourceText)
+                                         ? MarkdownDocument.toPlainText(record.sourceText)
+                                         : record.sourceText)
                                         .font(.system(size: 12, weight: .medium))
                                         .foregroundStyle(.primary)
                                         .lineLimit(2)
-                                    Text(record.translatedText)
+                                    Text(MarkdownDocument.hasStructure(record.translatedText)
+                                         ? MarkdownDocument.toPlainText(record.translatedText)
+                                         : record.translatedText)
                                         .font(.system(size: 12))
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)

@@ -118,7 +118,11 @@ public struct QuickPopupView: View {
                         }
                     } label: {
                         HStack(alignment: .top, spacing: 6) {
-                            Text(session.sourceText)
+                            let previewText = uiState.showFullSource
+                                ? session.speakableSourceText
+                                : session.speakableSourceText
+                                    .replacingOccurrences(of: #"\s*\n+\s*"#, with: " · ", options: .regularExpression)
+                            Text(previewText)
                                 .font(.system(size: 11.5))
                                 .foregroundStyle(.secondary)
                                 .lineLimit(uiState.showFullSource ? 8 : 2)
@@ -134,7 +138,7 @@ public struct QuickPopupView: View {
                     SpeakButton(
                         speechService: speechService,
                         id: "popup-source",
-                        text: session.sourceText,
+                        text: session.speakableSourceText,
                         help: l10n.speakSource,
                         size: 22
                     )
@@ -209,12 +213,12 @@ public struct QuickPopupView: View {
                                 }
                                 .padding(.vertical, 10)
                             } else {
-                                Text(session.translatedText)
-                                    .font(.system(size: 13.5))
-                                    .lineSpacing(3.5)
-                                    .foregroundStyle(.primary)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                StructuredResultView(
+                                    text: session.translatedText,
+                                    fontSize: 13.5,
+                                    lineSpacing: 3.5,
+                                    showRawMarkdown: session.showRawMarkdown
+                                )
                             }
                         }
                         .padding(.horizontal, 10)
@@ -228,11 +232,18 @@ public struct QuickPopupView: View {
                             CachedResultBadge(compact: true)
                                 .padding(.leading, 4)
                         }
+                        if session.sourceFormat == .richText && hasOutput && !session.isTranslating {
+                            StructuredFormatBadge(compact: true)
+                                .padding(.leading, session.isFromCache ? 2 : 4)
+                        }
                         Spacer()
+                        if hasOutput && session.hasStructuredOutput {
+                            MarkdownModeToggleButton(showRawMarkdown: $session.showRawMarkdown, size: 24)
+                        }
                         SpeakButton(
                             speechService: speechService,
                             id: "popup-result",
-                            text: session.translatedText,
+                            text: session.speakableTranslatedText,
                             languageHint: session.outputLanguageHint,
                             help: l10n.speakTranslation,
                             size: 24
@@ -240,7 +251,12 @@ public struct QuickPopupView: View {
                         CopyResultButton(
                             copied: session.copiedRecently,
                             disabled: !hasOutput,
-                            size: 24
+                            size: 24,
+                            autoFormat: session.resolvedAutoCopyFormat,
+                            isStructured: session.hasStructuredOutput,
+                            onCopyFormat: { format in
+                                session.copyTranslation(as: format)
+                            }
                         ) {
                             session.copyTranslation()
                         }
@@ -300,12 +316,12 @@ public struct QuickPopupView: View {
                                     }
                                     .padding(.vertical, 6)
                                 } else {
-                                    Text(session.comparisonText)
-                                        .font(.system(size: 13))
-                                        .lineSpacing(3)
-                                        .foregroundStyle(.primary)
-                                        .textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    StructuredResultView(
+                                        text: session.comparisonText,
+                                        fontSize: 13,
+                                        lineSpacing: 3,
+                                        showRawMarkdown: session.showRawMarkdown
+                                    )
                                 }
                             }
                             .padding(.horizontal, 10)
@@ -336,7 +352,7 @@ public struct QuickPopupView: View {
                             SpeakButton(
                                 speechService: speechService,
                                 id: "popup-compare-result",
-                                text: session.comparisonText,
+                                text: session.speakableComparisonText,
                                 languageHint: session.outputLanguageHint,
                                 help: l10n.speakTranslation,
                                 size: 22
@@ -344,7 +360,12 @@ public struct QuickPopupView: View {
                             CopyResultButton(
                                 copied: session.comparisonCopiedRecently,
                                 disabled: !hasComparisonOutput,
-                                size: 22
+                                size: 22,
+                                autoFormat: session.resolvedComparisonCopyFormat,
+                                isStructured: session.hasStructuredComparisonOutput,
+                                onCopyFormat: { format in
+                                    session.copyComparisonTranslation(as: format)
+                                }
                             ) {
                                 session.copyComparisonTranslation()
                             }

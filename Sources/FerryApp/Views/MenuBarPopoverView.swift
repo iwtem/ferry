@@ -137,6 +137,10 @@ public struct MenuBarPopoverView: View {
                 placeholder: l10n.popoverInputPlaceholder,
                 submitOnEnter: true,
                 fontSize: 13.5,
+                preserveFormatting: settingsStore.settings.preserveFormattingEnabled,
+                onPasteContent: { captured in
+                    session.sourceFormat = captured.format
+                },
                 onSubmit: {
                     session.translate()
                 }
@@ -155,6 +159,9 @@ public struct MenuBarPopoverView: View {
                     .buttonStyle(GhostIconStyle(size: 24))
                     .help(l10n.clear)
                     .accessibilityLabel(l10n.clear)
+                    if session.sourceFormat == .richText {
+                        StructuredFormatBadge(compact: true)
+                    }
                 } else {
                     Text(l10n.shiftReturnHint)
                         .font(.system(size: 10.5))
@@ -168,7 +175,7 @@ public struct MenuBarPopoverView: View {
                     SpeakButton(
                         speechService: speechService,
                         id: "popover-source",
-                        text: session.sourceText,
+                        text: session.speakableSourceText,
                         help: l10n.speakSource,
                         size: 24
                     )
@@ -260,12 +267,12 @@ public struct MenuBarPopoverView: View {
                         }
                         .padding(.vertical, 4)
                     } else if hasResult {
-                        Text(session.translatedText)
-                            .font(.system(size: 14))
-                            .lineSpacing(4)
-                            .foregroundStyle(.primary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        StructuredResultView(
+                            text: session.translatedText,
+                            fontSize: 14,
+                            lineSpacing: 4,
+                            showRawMarkdown: session.showRawMarkdown
+                        )
                     } else if !settingsStore.hasActiveAPIKey {
                         VStack(spacing: 10) {
                             HueOrb(systemName: "key.fill", hue: .amber, size: 40)
@@ -324,10 +331,13 @@ public struct MenuBarPopoverView: View {
                             session.retranslate(bypassCache: true)
                         }
                     }
+                    if hasResult && session.hasStructuredOutput {
+                        MarkdownModeToggleButton(showRawMarkdown: $session.showRawMarkdown, size: 24)
+                    }
                     SpeakButton(
                         speechService: speechService,
                         id: "popover-result",
-                        text: session.translatedText,
+                        text: session.speakableTranslatedText,
                         languageHint: session.outputLanguageHint,
                         help: l10n.speakTranslation,
                         size: 24
@@ -335,7 +345,12 @@ public struct MenuBarPopoverView: View {
                     CopyResultButton(
                         copied: session.copiedRecently,
                         disabled: !hasResult,
-                        size: 24
+                        size: 24,
+                        autoFormat: session.resolvedAutoCopyFormat,
+                        isStructured: session.hasStructuredOutput,
+                        onCopyFormat: { format in
+                            session.copyTranslation(as: format)
+                        }
                     ) {
                         session.copyTranslation()
                     }
@@ -396,12 +411,12 @@ public struct MenuBarPopoverView: View {
                         }
                         .padding(.vertical, 4)
                     } else if hasComparisonResult {
-                        Text(session.comparisonText)
-                            .font(.system(size: 13.5))
-                            .lineSpacing(3.5)
-                            .foregroundStyle(.primary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        StructuredResultView(
+                            text: session.comparisonText,
+                            fontSize: 13.5,
+                            lineSpacing: 3.5,
+                            showRawMarkdown: session.showRawMarkdown
+                        )
                     } else {
                         Text(l10n.translationPlaceholder)
                             .font(.system(size: 13.5))
@@ -446,7 +461,7 @@ public struct MenuBarPopoverView: View {
                 SpeakButton(
                     speechService: speechService,
                     id: "popover-compare-result",
-                    text: session.comparisonText,
+                    text: session.speakableComparisonText,
                     languageHint: session.outputLanguageHint,
                     help: l10n.speakTranslation,
                     size: 24
@@ -454,7 +469,12 @@ public struct MenuBarPopoverView: View {
                 CopyResultButton(
                     copied: session.comparisonCopiedRecently,
                     disabled: !hasComparisonResult,
-                    size: 24
+                    size: 24,
+                    autoFormat: session.resolvedComparisonCopyFormat,
+                    isStructured: session.hasStructuredComparisonOutput,
+                    onCopyFormat: { format in
+                        session.copyComparisonTranslation(as: format)
+                    }
                 ) {
                     session.copyComparisonTranslation()
                 }

@@ -45,9 +45,11 @@ public enum TextReplacementError: LocalizedError, Equatable, Sendable {
 @MainActor
 public final class TextReplacementService {
     public struct CapturedSelection {
-        public let text: String
+        public let content: CapturedContent
         public let sourceApp: NSRunningApplication?
         public let mouseLocation: NSPoint
+
+        public var text: String { content.text }
     }
 
     private struct ClipboardSnapshot {
@@ -83,7 +85,10 @@ public final class TextReplacementService {
     public init() {}
 
     /// Reads the currently selected text from the frontmost app without permanently disturbing the user's clipboard.
-    public func captureSelection(copyMonitor: GlobalCopyMonitor?) async throws -> CapturedSelection {
+    public func captureSelection(
+        copyMonitor: GlobalCopyMonitor?,
+        preserveFormatting: Bool = true
+    ) async throws -> CapturedSelection {
         let mouseLocation = NSEvent.mouseLocation
         let frontmost = NSWorkspace.shared.frontmostApplication
         let sourceApp = (frontmost?.processIdentifier == ProcessInfo.processInfo.processIdentifier) ? nil : frontmost
@@ -92,13 +97,18 @@ public final class TextReplacementService {
             throw TextReplacementError.accessibilityRequired
         }
 
-        // Fast path: try Accessibility AXSelectedText directly (zero clipboard impact).
-        if let axText = Self.readFocusedAXSelectedText(),
-           !axText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return CapturedSelection(text: axText, sourceApp: sourceApp, mouseLocation: mouseLocation)
+        // Fast path when formatting preservation is disabled: read AXSelectedText directly (zero clipboard impact).
+        if !preserveFormatting,
+           let axText = Self.readFocusedAXSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !axText.isEmpty {
+            return CapturedSelection(
+                content: CapturedContent(text: axText, format: .plainText),
+                sourceApp: sourceApp,
+                mouseLocation: mouseLocation
+            )
         }
 
-        // Fallback for Electron / Chrome / Slack / VS Code: temporary clipboard-preserving ⌘C.
+        // Clipboard-preserving ⌘C captures HTML/RTF formatting as well as Electron/Chrome/Notion/Feishu selections.
         let pasteboard = NSPasteboard.general
         let snapshot = ClipboardSnapshot.capture(from: pasteboard)
         let baselineChangeCount = pasteboard.changeCount
@@ -106,36 +116,60 @@ public final class TextReplacementService {
         copyMonitor?.isSuppressed = true
         defer { copyMonitor?.isSuppressed = false }
 
-        guard Self.postCommandKey(virtualKey: CGKeyCode(kVK_ANSI_C)) else {
-            throw TextReplacementError.noSelectionFound
-        }
-
-        // Poll up to 220ms for the frontmost app to update the pasteboard.
-        var didUpdate = false
-        for _ in 0..<11 {
-            try? await Task.sleep(for: .milliseconds(20))
-            if pasteboard.changeCount != baselineChangeCount {
-                didUpdate = true
-                break
+        var capturedContent: CapturedContent? = nil
+        if Self.postCommandKey(virtualKey: CGKeyCode(kVK_ANSI_C)) {
+            // Poll up to 220ms for the frontmost app to update the pasteboard.
+            var didUpdate = false
+            for _ in 0..<11 {
+                try? await Task.sleep(for: .milliseconds(20))
+                if pasteboard.changeCount != baselineChangeCount {
+                    didUpdate = true
+                    break
+                }
             }
+
+            if didUpdate {
+                capturedContent = RichClipboardService.readContent(
+                    from: pasteboard,
+                    preserveFormatting: preserveFormatting
+                )
+            }
+
+            // Always restore the user's original clipboard right away.
+            snapshot.restore(to: pasteboard)
         }
 
-        let capturedText = didUpdate
-            ? pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            : nil
-
-        // Always restore the user's original clipboard right away.
-        snapshot.restore(to: pasteboard)
-
-        guard let text = capturedText, !text.isEmpty else {
-            throw TextReplacementError.noSelectionFound
+        if let capturedContent {
+            return CapturedSelection(
+                content: capturedContent,
+                sourceApp: sourceApp,
+                mouseLocation: mouseLocation
+            )
         }
 
-        return CapturedSelection(text: text, sourceApp: sourceApp, mouseLocation: mouseLocation)
+        // Fallback to Accessibility AXSelectedText if the app ignored synthetic ⌘C.
+        if let axText = Self.readFocusedAXSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !axText.isEmpty {
+            let format: SourceContentFormat = (preserveFormatting && MarkdownDocument.hasStructure(axText))
+                ? .markdown
+                : .plainText
+            return CapturedSelection(
+                content: CapturedContent(text: axText, format: format),
+                sourceApp: sourceApp,
+                mouseLocation: mouseLocation
+            )
+        }
+
+        throw TextReplacementError.noSelectionFound
     }
 
     /// Replaces the active selection in `targetApp` with `text` by pasting via ⌘V and restoring the user's clipboard.
-    public func replaceSelection(with text: String, in targetApp: NSRunningApplication?) async throws {
+    public func replaceSelection(
+        with text: String,
+        sourceFormat: SourceContentFormat = .plainText,
+        format: OutputCopyFormat = .auto,
+        in targetApp: NSRunningApplication?
+    ) async throws {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw TextReplacementError.emptyText
@@ -158,8 +192,12 @@ public final class TextReplacementService {
             try? await Task.sleep(for: .milliseconds(50))
         }
 
-        pasteboard.clearContents()
-        pasteboard.setString(trimmed, forType: .string)
+        RichClipboardService.writeTranslation(
+            trimmed,
+            format: format,
+            sourceFormat: sourceFormat,
+            to: pasteboard
+        )
         let pastedChangeCount = pasteboard.changeCount
 
         guard Self.postCommandKey(virtualKey: CGKeyCode(kVK_ANSI_V)) else {

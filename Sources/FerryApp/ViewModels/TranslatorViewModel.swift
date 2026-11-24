@@ -11,11 +11,15 @@ public final class TranslatorSession {
             let wasEmpty = oldValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let isEmpty = sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             if !wasEmpty && isEmpty && !isRecognizingOCR {
+                sourceFormat = .plainText
+                showRawMarkdown = false
                 clearOutput()
             }
         }
     }
     public var translatedText: String = ""
+    public var sourceFormat: SourceContentFormat = .plainText
+    public var showRawMarkdown: Bool = false
     public var targetLanguage: TargetLanguage
     public var resolvedLanguage: TargetLanguage = .zhCN
     public var mode: TranslationMode = .translate
@@ -57,6 +61,34 @@ public final class TranslatorSession {
         mode.preservesSourceLanguage(for: targetLanguage) ? nil : resolvedLanguage
     }
 
+    public var hasStructuredOutput: Bool {
+        MarkdownDocument.hasStructure(translatedText)
+    }
+
+    public var hasStructuredComparisonOutput: Bool {
+        MarkdownDocument.hasStructure(comparisonText)
+    }
+
+    public var resolvedAutoCopyFormat: OutputCopyFormat {
+        RichClipboardService.resolvedFormat(requested: .auto, sourceFormat: sourceFormat, text: translatedText)
+    }
+
+    public var resolvedComparisonCopyFormat: OutputCopyFormat {
+        RichClipboardService.resolvedFormat(requested: .auto, sourceFormat: sourceFormat, text: comparisonText)
+    }
+
+    public var speakableSourceText: String {
+        MarkdownDocument.hasStructure(sourceText) ? MarkdownDocument.toPlainText(sourceText) : sourceText
+    }
+
+    public var speakableTranslatedText: String {
+        hasStructuredOutput ? MarkdownDocument.toPlainText(translatedText) : translatedText
+    }
+
+    public var speakableComparisonText: String {
+        hasStructuredComparisonOutput ? MarkdownDocument.toPlainText(comparisonText) : comparisonText
+    }
+
     private let settingsStore: SettingsStore
     private let translatorService: LLMTranslatorService
     private var activeTask: Task<Void, Never>?
@@ -72,11 +104,37 @@ public final class TranslatorSession {
 
     // MARK: - Primary Translation
 
+    public func translate(content: CapturedContent, bypassCache: Bool = false) {
+        sourceFormat = content.format
+        showRawMarkdown = false
+        if content.format == .richText {
+            // Structured Markdown extracted from HTML/RTF already has exact document paragraphs & line breaks.
+            sourceText = content.text
+        } else {
+            sourceText = settingsStore.settings.pdfLineBreakFixEnabled
+                ? TextPreprocessor.cleanPDFLineBreaks(content.text)
+                : content.text
+        }
+        translate(text: nil, bypassCache: bypassCache)
+    }
+
     public func translate(text overrideText: String? = nil, bypassCache: Bool = false) {
         if let overrideText {
-            sourceText = settingsStore.settings.pdfLineBreakFixEnabled
-                ? TextPreprocessor.cleanPDFLineBreaks(overrideText)
-                : overrideText
+            let detectedFormat: SourceContentFormat = (settingsStore.settings.preserveFormattingEnabled
+                && MarkdownDocument.hasStructure(overrideText)) ? .markdown : .plainText
+            translate(content: CapturedContent(text: overrideText, format: detectedFormat), bypassCache: bypassCache)
+            return
+        }
+
+        // Reconcile sourceFormat when translating manually edited input.
+        let hasMarkdownSource = settingsStore.settings.preserveFormattingEnabled
+            && MarkdownDocument.hasStructure(sourceText)
+        if sourceFormat == .richText {
+            if !hasMarkdownSource {
+                sourceFormat = .plainText
+            }
+        } else {
+            sourceFormat = hasMarkdownSource ? .markdown : .plainText
         }
 
         let trimmed = cleanedSourceText()
@@ -178,11 +236,10 @@ public final class TranslatorSession {
         closeComparison()
     }
 
-    public func copyComparisonTranslation() {
+    public func copyComparisonTranslation(as format: OutputCopyFormat = .auto) {
         let content = comparisonText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(content, forType: .string)
+        RichClipboardService.writeTranslation(content, format: format, sourceFormat: sourceFormat)
 
         comparisonCopiedRecently = true
         comparisonCopyFeedbackTask?.cancel()
@@ -197,6 +254,8 @@ public final class TranslatorSession {
 
     public func beginOCRRecognition() {
         cancel()
+        sourceFormat = .plainText
+        showRawMarkdown = false
         sourceText = ""
         translatedText = ""
         errorMessage = nil
@@ -247,6 +306,8 @@ public final class TranslatorSession {
 
     public func clear() {
         cancel()
+        sourceFormat = .plainText
+        showRawMarkdown = false
         sourceText = ""
         clearOutput()
     }
@@ -276,11 +337,10 @@ public final class TranslatorSession {
         comparisonCopiedRecently = false
     }
 
-    public func copyTranslation() {
+    public func copyTranslation(as format: OutputCopyFormat = .auto) {
         let content = translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(content, forType: .string)
+        RichClipboardService.writeTranslation(content, format: format, sourceFormat: sourceFormat)
 
         copiedRecently = true
         copyFeedbackTask?.cancel()
@@ -294,7 +354,9 @@ public final class TranslatorSession {
     public func swapWithTranslation() {
         let result = translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !result.isEmpty else { return }
+        let preservedFormat = sourceFormat
         sourceText = result
+        sourceFormat = preservedFormat
         translatedText = ""
         errorMessage = nil
         translate()
@@ -303,6 +365,8 @@ public final class TranslatorSession {
     public func loadFrom(_ other: TranslatorSession) {
         cancel()
         sourceText = other.sourceText
+        sourceFormat = other.sourceFormat
+        showRawMarkdown = other.showRawMarkdown
         translatedText = other.translatedText
         targetLanguage = other.targetLanguage
         resolvedLanguage = other.resolvedLanguage
@@ -329,6 +393,8 @@ public final class TranslatorSession {
     public func loadRecord(_ record: TranslationRecord) {
         cancel()
         sourceText = record.sourceText
+        sourceFormat = record.sourceFormat
+        showRawMarkdown = false
         translatedText = record.translatedText
         targetLanguage = record.targetLanguage
         resolvedLanguage = record.resolvedLanguage
@@ -346,10 +412,31 @@ public final class TranslatorSession {
     // MARK: - Internal Execution
 
     private func cleanedSourceText() -> String {
-        let rawTrimmed = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if sourceFormat == .richText {
+            return trimOuterBlankLines(sourceText)
+        }
+        let rawTrimmed = trimOuterBlankLines(sourceText)
         return settingsStore.settings.pdfLineBreakFixEnabled
             ? TextPreprocessor.cleanPDFLineBreaks(rawTrimmed)
             : rawTrimmed
+    }
+
+    private func trimOuterBlankLines(_ text: String) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        var lines = normalized.components(separatedBy: "\n")
+        while let first = lines.first, first.trimmingCharacters(in: .whitespaces).isEmpty {
+            lines.removeFirst()
+        }
+        while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
+            lines.removeLast()
+        }
+        let joined = lines.joined(separator: "\n")
+        if !joined.contains("\n") {
+            return joined.trimmingCharacters(in: .whitespaces)
+        }
+        return joined
     }
 
     private func resolvedComparisonModel(excluding primary: ModelChoice) -> ModelChoice? {
@@ -382,6 +469,7 @@ public final class TranslatorSession {
 
         let chosenTarget = targetLanguage
         let chosenMode = mode
+        let chosenFormat = sourceFormat
         let resolved = chosenTarget.resolvedTarget(for: trimmed)
         resolvedLanguage = resolved
 
@@ -402,6 +490,7 @@ public final class TranslatorSession {
                 targetLanguage: chosenTarget,
                 resolvedLanguage: resolved,
                 mode: chosenMode,
+                sourceFormat: chosenFormat,
                 provider: choice.provider,
                 model: choice.model
             )
@@ -429,7 +518,10 @@ public final class TranslatorSession {
 
                 if !Task.isCancelled {
                     self.isTranslating = false
-                    let finalOutput = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let finalOutput = MarkdownDocument.unwrapOuterMarkdownFenceIfNeeded(
+                        buffer.trimmingCharacters(in: .whitespacesAndNewlines),
+                        source: trimmed
+                    )
                     if !finalOutput.isEmpty {
                         self.translatedText = finalOutput
                         self.settingsStore.cacheTranslation(finalOutput, for: cacheKey)
@@ -439,6 +531,7 @@ public final class TranslatorSession {
                             targetLanguage: chosenTarget,
                             resolvedLanguage: resolved,
                             mode: chosenMode,
+                            sourceFormat: chosenFormat,
                             provider: choice.provider,
                             model: choice.model
                         )
@@ -497,7 +590,10 @@ public final class TranslatorSession {
 
                 if !Task.isCancelled {
                     self.isComparisonTranslating = false
-                    let finalOutput = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let finalOutput = MarkdownDocument.unwrapOuterMarkdownFenceIfNeeded(
+                        buffer.trimmingCharacters(in: .whitespacesAndNewlines),
+                        source: trimmed
+                    )
                     if !finalOutput.isEmpty {
                         self.comparisonText = finalOutput
                         self.settingsStore.cacheTranslation(finalOutput, for: cacheKey)

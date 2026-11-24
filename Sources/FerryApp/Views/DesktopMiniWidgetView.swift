@@ -82,6 +82,10 @@ public struct DesktopMiniWidgetView: View {
                 submitOnEnter: true,
                 fontSize: 13,
                 focusTrigger: focusTrigger,
+                preserveFormatting: settingsStore.settings.preserveFormattingEnabled,
+                onPasteContent: { captured in
+                    session.sourceFormat = captured.format
+                },
                 onSubmit: {
                     session.translate()
                 }
@@ -122,11 +126,12 @@ public struct DesktopMiniWidgetView: View {
                                     .foregroundStyle(.tertiary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             } else {
-                                Text(session.translatedText)
-                                    .font(.system(size: 13))
-                                    .lineSpacing(3)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                StructuredResultView(
+                                    text: session.translatedText,
+                                    fontSize: 13,
+                                    lineSpacing: 3,
+                                    showRawMarkdown: session.showRawMarkdown
+                                )
                             }
                         }
                         .padding(.horizontal, 8)
@@ -159,10 +164,13 @@ public struct DesktopMiniWidgetView: View {
                                 session.retranslate(bypassCache: true)
                             }
                         }
+                        if hasOutput && session.hasStructuredOutput {
+                            MarkdownModeToggleButton(showRawMarkdown: $session.showRawMarkdown, size: 24)
+                        }
                         SpeakButton(
                             speechService: speechService,
                             id: "widget-result",
-                            text: session.translatedText,
+                            text: session.speakableTranslatedText,
                             languageHint: session.outputLanguageHint,
                             help: l10n.speakTranslation,
                             size: 24
@@ -170,7 +178,12 @@ public struct DesktopMiniWidgetView: View {
                         CopyResultButton(
                             copied: session.copiedRecently,
                             disabled: !hasOutput,
-                            size: 24
+                            size: 24,
+                            autoFormat: session.resolvedAutoCopyFormat,
+                            isStructured: session.hasStructuredOutput,
+                            onCopyFormat: { format in
+                                session.copyTranslation(as: format)
+                            }
                         ) {
                             session.copyTranslation()
                         }

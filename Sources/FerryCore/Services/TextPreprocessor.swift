@@ -25,7 +25,7 @@ public enum TextPreprocessor {
         for line in rawLines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            if trimmed.hasPrefix("```") {
+            if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                 flushParagraph()
                 inCodeFence.toggle()
                 outputLines.append(line)
@@ -57,7 +57,7 @@ public enum TextPreprocessor {
         guard lines.count > 1 else { return lines[0] }
 
         var resultLines: [String] = []
-        var current = lines[0].trimmingCharacters(in: .whitespaces)
+        var current = preservedLeadingLine(lines[0])
 
         for index in 1..<lines.count {
             let rawNext = lines[index]
@@ -66,7 +66,7 @@ public enum TextPreprocessor {
 
             if shouldKeepLineBreak(previous: current, rawNext: rawNext, next: next) {
                 resultLines.append(current)
-                current = next
+                current = preservedLeadingLine(rawNext)
             } else {
                 current = joinWrapped(current, next)
             }
@@ -76,13 +76,33 @@ public enum TextPreprocessor {
         return resultLines.joined(separator: "\n")
     }
 
+    /// Preserves leading indentation for indented code blocks and nested list items,
+    /// while stripping stray leading spaces on ordinary prose lines.
+    private static func preservedLeadingLine(_ rawLine: String) -> String {
+        let strippedTrailing = rawLine.replacingOccurrences(of: #"[ \t]+$"#, with: "", options: .regularExpression)
+        let trimmed = strippedTrailing.trimmingCharacters(in: .whitespaces)
+        if strippedTrailing.hasPrefix("    ") || strippedTrailing.hasPrefix("\t") {
+            return strippedTrailing
+        }
+        if (strippedTrailing.hasPrefix("  ") || strippedTrailing.hasPrefix("\t")),
+           startsWithListMarker(trimmed) || trimmed.hasPrefix(">") {
+            return strippedTrailing
+        }
+        return trimmed
+    }
+
     private static func shouldKeepLineBreak(previous: String, rawNext: String, next: String) -> Bool {
+        let prevTrimmed = previous.trimmingCharacters(in: .whitespaces)
         // Indented code or block quotes
         if rawNext.hasPrefix("    ") || rawNext.hasPrefix("\t") {
             return true
         }
+        // Keep line breaks after Markdown headings, blockquotes, tables, or horizontal rules
+        if prevTrimmed.hasPrefix("#") || prevTrimmed.hasPrefix(">") || prevTrimmed.hasPrefix("|") || isThematicBreak(prevTrimmed) {
+            return true
+        }
         // Markdown headings, blockquotes, tables, horizontal rules
-        if next.hasPrefix("#") || next.hasPrefix(">") || next.hasPrefix("|") || next.hasPrefix("---") {
+        if next.hasPrefix("#") || next.hasPrefix(">") || next.hasPrefix("|") || isThematicBreak(next) {
             return true
         }
         // Bullet or numbered list items
@@ -90,14 +110,21 @@ public enum TextPreprocessor {
             return true
         }
         // Code-like line endings
-        if let last = previous.last, "{};\\".contains(last) {
+        if let last = prevTrimmed.last, "{};\\".contains(last) {
             return true
         }
         // Short header / label ending with colon
-        if previous.count <= 48, (previous.hasSuffix(":") || previous.hasSuffix("：")) {
+        if prevTrimmed.count <= 48, (prevTrimmed.hasSuffix(":") || prevTrimmed.hasSuffix("：")) {
             return true
         }
         return false
+    }
+
+    private static func isThematicBreak(_ trimmed: String) -> Bool {
+        let stripped = trimmed.filter { $0 != " " && $0 != "\t" }
+        guard stripped.count >= 3, let first = stripped.first else { return false }
+        guard first == "-" || first == "*" || first == "_" else { return false }
+        return stripped.allSatisfy { $0 == first }
     }
 
     private static func joinWrapped(_ previous: String, _ next: String) -> String {

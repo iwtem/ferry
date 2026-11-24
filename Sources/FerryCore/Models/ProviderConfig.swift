@@ -217,6 +217,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var wordLookupEnabled: Bool
     /// Automatically merge wrapped PDF line breaks and de-hyphenate split words before translating.
     public var pdfLineBreakFixEnabled: Bool
+    /// Preserve document structure (headings, bold, lists, links, tables, code) when copying/pasting rich text.
+    public var preserveFormattingEnabled: Bool
     /// Cache translation results locally (LRU) so repeated lookups return immediately without using tokens.
     public var translationCacheEnabled: Bool
     /// Speech / pronunciation configuration (offline macOS voice or cloud TTS).
@@ -265,6 +267,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         temperature: Double = 0.2,
         wordLookupEnabled: Bool = true,
         pdfLineBreakFixEnabled: Bool = true,
+        preserveFormattingEnabled: Bool = true,
         translationCacheEnabled: Bool = true,
         speech: SpeechSettings = SpeechSettings(),
         appearance: AppearanceMode = .system,
@@ -292,6 +295,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.temperature = temperature
         self.wordLookupEnabled = wordLookupEnabled
         self.pdfLineBreakFixEnabled = pdfLineBreakFixEnabled
+        self.preserveFormattingEnabled = preserveFormattingEnabled
         self.translationCacheEnabled = translationCacheEnabled
         self.speech = speech
         self.appearance = appearance
@@ -313,7 +317,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case activeProvider, profiles, defaultTargetLanguage, doubleCopyEnabled, doubleCopyIntervalMs
-        case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, pdfLineBreakFixEnabled, translationCacheEnabled
+        case desktopWidgetAlwaysOnTop, temperature, wordLookupEnabled, pdfLineBreakFixEnabled, preserveFormattingEnabled, translationCacheEnabled
         case speech, appearance, language
         case quickTranslateShortcutEnabled, quickTranslateShortcut
         case mainWindowShortcutEnabled, mainWindowShortcut
@@ -336,6 +340,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         temperature = try c.decodeIfPresent(Double.self, forKey: .temperature) ?? defaults.temperature
         wordLookupEnabled = try c.decodeIfPresent(Bool.self, forKey: .wordLookupEnabled) ?? defaults.wordLookupEnabled
         pdfLineBreakFixEnabled = try c.decodeIfPresent(Bool.self, forKey: .pdfLineBreakFixEnabled) ?? defaults.pdfLineBreakFixEnabled
+        preserveFormattingEnabled = try c.decodeIfPresent(Bool.self, forKey: .preserveFormattingEnabled) ?? defaults.preserveFormattingEnabled
         translationCacheEnabled = try c.decodeIfPresent(Bool.self, forKey: .translationCacheEnabled) ?? defaults.translationCacheEnabled
         speech = try c.decodeIfPresent(SpeechSettings.self, forKey: .speech) ?? defaults.speech
         appearance = try c.decodeIfPresent(AppearanceMode.self, forKey: .appearance) ?? defaults.appearance

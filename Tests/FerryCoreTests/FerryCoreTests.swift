@@ -219,6 +219,7 @@ struct FerryCoreTests {
         #expect(settings.profiles[.bailian]?.model == "qwen-plus")
         #expect(settings.wordLookupEnabled == true)
         #expect(settings.pdfLineBreakFixEnabled == true)
+        #expect(settings.preserveFormattingEnabled == true)
         #expect(settings.translationCacheEnabled == true)
         #expect(settings.speech == SpeechSettings())
         #expect(settings.language == .system)
@@ -822,6 +823,193 @@ struct FerryCoreTests {
         #expect(decoded.secondaryModel == explicit)
         #expect(explicit.displayLabel(in: .zhHans) == "阿里百炼 · qwen-max")
         #expect(explicit.displayLabel(in: .en) == "Bailian · qwen-max")
+    }
+
+    @Test("HTMLToMarkdownConverter preserves headings, emphasis, links, lists, blockquotes, code, and tables")
+    func testHTMLToMarkdownConversion() throws {
+        let html = """
+        <!--StartFragment-->
+        <h2>更新说明</h2>
+        <p>支持 <strong>加粗</strong>、<em>斜体</em>、<del>删除线</del>、<code>swift test</code> 与 <a href="https://example.com/docs">在线文档</a>。</p>
+        <ul>
+          <li>一级条目
+            <ul>
+              <li>二级嵌套</li>
+            </ul>
+          </li>
+          <li><input type="checkbox" checked> 已完成任务</li>
+        </ul>
+        <ol start="3">
+          <li>第三步</li>
+          <li>第四步</li>
+        </ol>
+        <blockquote><p>引用段落</p></blockquote>
+        <pre><code class="language-swift">let x = 1\nprint(x)</code></pre>
+        <table>
+          <thead><tr><th>字段</th><th style="text-align: center;">状态</th></tr></thead>
+          <tbody><tr><td>A | B</td><td>OK</td></tr></tbody>
+        </table>
+        <!--EndFragment-->
+        """
+
+        let result = try #require(HTMLToMarkdownConverter.convert(html: html))
+        #expect(result.hasRichStructure == true)
+        #expect(result.markdown.contains("## 更新说明"))
+        #expect(result.markdown.contains("**加粗**"))
+        #expect(result.markdown.contains("*斜体*"))
+        #expect(result.markdown.contains("~~删除线~~"))
+        #expect(result.markdown.contains("`swift test`"))
+        #expect(result.markdown.contains("[在线文档](https://example.com/docs)"))
+        #expect(result.markdown.contains("- 一级条目"))
+        #expect(result.markdown.contains("  - 二级嵌套"))
+        #expect(result.markdown.contains("- [x] 已完成任务"))
+        #expect(result.markdown.contains("3. 第三步"))
+        #expect(result.markdown.contains("4. 第四步"))
+        #expect(result.markdown.contains("> 引用段落"))
+        #expect(result.markdown.contains("```swift\nlet x = 1\nprint(x)\n```"))
+        #expect(result.markdown.contains("| 字段 | 状态 |"))
+        #expect(result.markdown.contains("| --- | :---: |"))
+        #expect(result.markdown.contains(#"| A \| B | OK |"#))
+    }
+
+    @Test("HTMLToMarkdownConverter handles Google Docs normal-weight <b>, VS Code syntax HTML, and single-word lookup")
+    func testHTMLToMarkdownEdgeCases() throws {
+        // Google Docs wraps entire selection in <b style="font-weight:normal;">
+        let gdocs = """
+        <b style="font-weight:normal;" id="docs-internal-guid-1"><p><span style="font-weight:700;">Bold</span> and <span style="font-style:italic;">italic</span> text.</p></b>
+        """
+        let gdocsResult = try #require(HTMLToMarkdownConverter.convert(html: gdocs))
+        #expect(gdocsResult.hasRichStructure == true)
+        #expect(gdocsResult.markdown == "**Bold** and *italic* text.")
+
+        // VS Code syntax-highlighted code paste should fall back to nil (use plain text)
+        let vscode = """
+        <div style="color: #d4d4d4; font-family: Menlo, Monaco, monospace; white-space: pre;"><div><span style="color: #569cd6;">func</span> <span style="color: #dcdcaa;">hello</span>() {}</div></div>
+        """
+        #expect(HTMLToMarkdownConverter.convert(html: vscode) == nil)
+
+        // Single bold word from an article should preserve word-lookup UX (returns nil)
+        let singleBoldWord = "<strong>serendipity</strong>"
+        #expect(HTMLToMarkdownConverter.convert(html: singleBoldWord, plainTextFallback: "serendipity") == nil)
+
+        // Unstyled plain span has no rich structure
+        let plainSpan = "<span style=\"color: #222222;\">This is a plain sentence without formatting.</span>"
+        let plainResult = try #require(HTMLToMarkdownConverter.convert(html: plainSpan))
+        #expect(plainResult.hasRichStructure == false)
+    }
+
+    @Test("MarkdownDocument parses blocks/inlines, detects structure accurately, and serializes HTML & plain text")
+    func testMarkdownDocumentParseAndSerialize() {
+        // Ordinary prose with math/snake_case/hashtags should not trigger false structure positives
+        #expect(MarkdownDocument.hasStructure("2 * 3 * 4 = 24 and foo_bar_baz #1") == false)
+        #expect(MarkdownDocument.hasStructure("Hello world, this is a normal sentence.") == false)
+
+        let md = """
+        # Title
+
+        Hello **world**, check [Swift (lang)](https://swift.org/docs_(v6)) and `code`.
+
+        - Item 1
+          - Nested item
+        - [x] Done
+
+        > Quote line
+
+        | Name | Score |
+        | :--- | ---: |
+        | Ferry | 100 |
+        """
+
+        #expect(MarkdownDocument.hasStructure(md) == true)
+        let blocks = MarkdownDocument.parse(md)
+        #expect(blocks.count == 5)
+        #expect(blocks[0] == .heading(level: 1, text: "Title"))
+
+        let inlines = MarkdownDocument.parseInlines("Hello **world**, check [Swift (lang)](https://swift.org/docs_(v6)) and `code`.")
+        #expect(inlines.contains(.bold([.text("world")])))
+        #expect(inlines.contains(.code("code")))
+        #expect(inlines.contains(.link(label: [.text("Swift (lang)")], url: "https://swift.org/docs_(v6)")))
+
+        let html = MarkdownDocument.toHTML(md)
+        #expect(html.contains("<h1>Title</h1>"))
+        #expect(html.contains("<strong>world</strong>"))
+        #expect(html.contains("<a href=\"https://swift.org/docs_(v6)\">Swift (lang)</a>"))
+        #expect(html.contains("<ul><li>Item 1<ul><li>Nested item</li></ul></li><li>☑ Done</li></ul>"))
+        #expect(html.contains("<table"))
+        #expect(html.contains("text-align: right;"))
+
+        let plain = MarkdownDocument.toPlainText(md)
+        #expect(!plain.contains("**"))
+        #expect(!plain.contains("https://"))
+        #expect(plain.contains("Title"))
+        #expect(plain.contains("• Item 1"))
+        #expect(plain.contains("[x] Done"))
+        #expect(plain.contains("Ferry\t100"))
+    }
+
+    @Test("MarkdownDocument unwraps stray outer markdown code fences without touching genuine code blocks")
+    func testUnwrapOuterMarkdownFence() {
+        let source = "## Heading\n\n- **Item**"
+        let wrapped = "```markdown\n## 标题\n\n- **条目**\n```"
+        #expect(MarkdownDocument.unwrapOuterMarkdownFenceIfNeeded(wrapped, source: source) == "## 标题\n\n- **条目**")
+
+        // Genuine code block in source should never be unwrapped
+        let codeSource = "```markdown\n# Demo\n```"
+        #expect(MarkdownDocument.unwrapOuterMarkdownFenceIfNeeded(wrapped, source: codeSource) == wrapped)
+    }
+
+    @Test("TextPreprocessor preserves Markdown headings, nested list indentation, and table lines")
+    func testTextPreprocessorPreservesMarkdownStructure() {
+        let input = """
+        ## Section Title
+        First line of paragraph
+        continues here.
+        - Parent item
+          - Nested child
+        | Col A | Col B |
+        | --- | --- |
+        | 1 | 2 |
+        """
+        let cleaned = TextPreprocessor.cleanPDFLineBreaks(input)
+        #expect(cleaned.contains("## Section Title\nFirst line of paragraph continues here."))
+        #expect(cleaned.contains("- Parent item\n  - Nested child"))
+        #expect(cleaned.contains("| Col A | Col B |\n| --- | --- |\n| 1 | 2 |"))
+    }
+
+    @Test("TranslationPrompt injects strict Markdown structure rules when source is structured")
+    func testStructuredTranslationPrompt() throws {
+        let structuredPayload = LLMTranslatorService.makePayload(
+            text: "## Overview\n\n- **Fast** [Ferry](https://example.com)",
+            resolvedTarget: .zhCN,
+            model: "deepseek-chat",
+            temperature: 0.2,
+            stream: true
+        )
+        let messages = try #require(structuredPayload["messages"] as? [[String: String]])
+        #expect(messages[0]["content"]?.contains("Structure & Markdown rules") == true)
+        #expect(messages[0]["content"]?.contains("keep the URL byte-for-byte unchanged") == true)
+
+        let plainPayload = LLMTranslatorService.makePayload(
+            text: "This is a simple sentence.",
+            resolvedTarget: .zhCN,
+            model: "deepseek-chat",
+            temperature: 0.2,
+            stream: true
+        )
+        let plainMessages = try #require(plainPayload["messages"] as? [[String: String]])
+        #expect(plainMessages[0]["content"]?.contains("Structure & Markdown rules") == false)
+    }
+
+    @Test("Legacy TranslationRecord without sourceFormat decodes cleanly to plainText")
+    func testLegacyTranslationRecordDecoding() throws {
+        let legacy = #"""
+        {"id":"11111111-1111-1111-1111-111111111111","sourceText":"Hello","translatedText":"你好",
+         "targetLanguage":"auto","resolvedLanguage":"zh-CN","provider":"deepseek","model":"deepseek-chat",
+         "createdAt":0}
+        """#
+        let record = try JSONDecoder().decode(TranslationRecord.self, from: Data(legacy.utf8))
+        #expect(record.mode == .translate)
+        #expect(record.sourceFormat == .plainText)
     }
 
     @Test("OCRService recognizes rendered text on a CGImage via Apple Vision")

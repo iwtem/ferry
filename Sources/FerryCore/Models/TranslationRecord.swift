@@ -8,6 +8,7 @@ public struct TranslationRecord: Codable, Identifiable, Equatable, Sendable {
     public let targetLanguage: TargetLanguage
     public let resolvedLanguage: TargetLanguage
     public let mode: TranslationMode
+    public let sourceFormat: SourceContentFormat
     public let provider: ProviderKind
     public let model: String
     public let createdAt: Date
@@ -19,6 +20,7 @@ public struct TranslationRecord: Codable, Identifiable, Equatable, Sendable {
         targetLanguage: TargetLanguage,
         resolvedLanguage: TargetLanguage,
         mode: TranslationMode = .translate,
+        sourceFormat: SourceContentFormat = .plainText,
         provider: ProviderKind,
         model: String,
         createdAt: Date = Date()
@@ -29,13 +31,14 @@ public struct TranslationRecord: Codable, Identifiable, Equatable, Sendable {
         self.targetLanguage = targetLanguage
         self.resolvedLanguage = resolvedLanguage
         self.mode = mode
+        self.sourceFormat = sourceFormat
         self.provider = provider
         self.model = model
         self.createdAt = createdAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, sourceText, translatedText, targetLanguage, resolvedLanguage, mode, provider, model, createdAt
+        case id, sourceText, translatedText, targetLanguage, resolvedLanguage, mode, sourceFormat, provider, model, createdAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -46,6 +49,7 @@ public struct TranslationRecord: Codable, Identifiable, Equatable, Sendable {
         targetLanguage = try c.decode(TargetLanguage.self, forKey: .targetLanguage)
         resolvedLanguage = try c.decode(TargetLanguage.self, forKey: .resolvedLanguage)
         mode = try c.decodeIfPresent(TranslationMode.self, forKey: .mode) ?? .translate
+        sourceFormat = try c.decodeIfPresent(SourceContentFormat.self, forKey: .sourceFormat) ?? .plainText
         provider = try c.decode(ProviderKind.self, forKey: .provider)
         model = try c.decode(String.self, forKey: .model)
         createdAt = try c.decode(Date.self, forKey: .createdAt)

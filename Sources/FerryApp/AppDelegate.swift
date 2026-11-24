@@ -155,6 +155,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         editMenu.addItem(withTitle: l10n.menuCut, action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: l10n.menuCopy, action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: l10n.menuPaste, action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        let pastePlainItem = NSMenuItem(
+            title: l10n.menuPastePlainText,
+            action: #selector(NSTextView.pasteAsPlainText(_:)),
+            keyEquivalent: "v"
+        )
+        pastePlainItem.keyEquivalentModifierMask = [.command, .option, .shift]
+        editMenu.addItem(pastePlainItem)
         editMenu.addItem(withTitle: l10n.menuSelectAll, action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
@@ -287,8 +294,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Double Cmd+C Global Monitor & Floating Popup
 
     private func setupGlobalCopyMonitor() {
-        copyMonitor.onDoubleCopy = { [weak self] copiedText, mouseLocation, sourceApp in
-            self?.handleDoubleCopy(text: copiedText, near: mouseLocation, sourceApp: sourceApp)
+        copyMonitor.onDoubleCopy = { [weak self] capturedContent, mouseLocation, sourceApp in
+            self?.handleDoubleCopy(content: capturedContent, near: mouseLocation, sourceApp: sourceApp)
         }
         copyMonitor.startMonitoring()
     }
@@ -309,11 +316,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyService.start(settingsStore: settingsStore)
     }
 
-    private func handleDoubleCopy(text: String, near mouseLocation: NSPoint, sourceApp: NSRunningApplication?) {
+    private func handleDoubleCopy(content: CapturedContent, near mouseLocation: NSPoint, sourceApp: NSRunningApplication?) {
         quickPopupSourceApp = sourceApp
         quickPopupUIState.sourceAppName = sourceApp?.localizedName
         quickPopupSession.targetLanguage = settingsStore.settings.defaultTargetLanguage
-        quickPopupSession.translate(text: text)
+        quickPopupSession.translate(content: content)
         showQuickPopup(near: mouseLocation)
     }
 
@@ -326,12 +333,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         selectionTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let captured = try await self.textReplacementService.captureSelection(copyMonitor: self.copyMonitor)
+                let captured = try await self.textReplacementService.captureSelection(
+                    copyMonitor: self.copyMonitor,
+                    preserveFormatting: self.settingsStore.settings.preserveFormattingEnabled
+                )
                 guard !Task.isCancelled else { return }
                 self.quickPopupSourceApp = captured.sourceApp
                 self.quickPopupUIState.sourceAppName = captured.sourceApp?.localizedName
                 self.quickPopupSession.targetLanguage = self.settingsStore.settings.defaultTargetLanguage
-                self.quickPopupSession.translate(text: captured.text)
+                self.quickPopupSession.translate(content: captured.content)
                 self.showQuickPopup(near: captured.mouseLocation)
             } catch let replaceError as TextReplacementError {
                 guard !Task.isCancelled else { return }
@@ -355,6 +365,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let output = quickPopupSession.translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !output.isEmpty else { return }
         let targetApp = quickPopupSourceApp
+        let sourceFormat = quickPopupSession.sourceFormat
 
         speechService.stop()
         quickPopupUIState.isPinned = false
@@ -363,7 +374,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { [weak self] in
             guard let self else { return }
             do {
-                try await self.textReplacementService.replaceSelection(with: output, in: targetApp)
+                try await self.textReplacementService.replaceSelection(
+                    with: output,
+                    sourceFormat: sourceFormat,
+                    format: .auto,
+                    in: targetApp
+                )
             } catch let replaceError as TextReplacementError {
                 if replaceError == .accessibilityRequired {
                     self.quickPopupSession.failWithAccessibilityError(replaceError.localizedDescription)

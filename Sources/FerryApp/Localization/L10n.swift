@@ -57,6 +57,7 @@ struct L10n: Sendable {
     var menuCut: String { t(zh: "剪切", en: "Cut") }
     var menuCopy: String { t(zh: "拷贝", en: "Copy") }
     var menuPaste: String { t(zh: "粘贴", en: "Paste") }
+    var menuPastePlainText: String { t(zh: "粘贴并匹配样式", en: "Paste and Match Style") }
     var menuSelectAll: String { t(zh: "全选", en: "Select All") }
     var menuWindow: String { t(zh: "窗口", en: "Window") }
     var menuCloseWindow: String { t(zh: "关闭窗口", en: "Close Window") }
@@ -111,6 +112,28 @@ struct L10n: Sendable {
     var clear: String { t(zh: "清空", en: "Clear") }
     var copy: String { t(zh: "复制", en: "Copy") }
     var copied: String { t(zh: "已复制", en: "Copied") }
+    var copyRichTextMenu: String { t(zh: "复制富文本 (HTML / RTF)", en: "Copy as Rich Text (HTML / RTF)") }
+    var copyMarkdownMenu: String { t(zh: "复制 Markdown", en: "Copy as Markdown") }
+    var copyPlainTextMenu: String { t(zh: "复制纯文本", en: "Copy as Plain Text") }
+
+    func copyAutoTooltip(for format: OutputCopyFormat, structured: Bool) -> String {
+        guard structured else { return copy }
+        switch format {
+        case .richText:
+            return t(zh: "复制（保留富文本格式）· 右键可选其他格式", en: "Copy (Rich Text) · Right-click for formats")
+        case .markdown:
+            return t(zh: "复制（Markdown）· 右键可选其他格式", en: "Copy (Markdown) · Right-click for formats")
+        case .plainText, .auto:
+            return t(zh: "复制 · 右键可选富文本或 Markdown", en: "Copy · Right-click for Rich Text or Markdown")
+        }
+    }
+
+    var viewMarkdownSourceTooltip: String { t(zh: "查看 Markdown 源码", en: "View Markdown Source") }
+    var viewFormattedLayoutTooltip: String { t(zh: "切换为排版视图", en: "View Formatted Layout") }
+    var richFormatBadge: String { t(zh: "格式保留", en: "Formatted") }
+    var richFormatBadgeTooltip: String {
+        t(zh: "已捕获文档结构：复制或替换原文时自动保留富文本格式", en: "Document structure captured: copy or replace preserves rich formatting")
+    }
     var settings: String { t(zh: "设置", en: "Settings") }
     var settingsShortcutHelp: String { t(zh: "设置 (⌘,)", en: "Settings (⌘,)") }
     var quitFerry: String { t(zh: "退出 Ferry", en: "Quit Ferry") }
@@ -452,6 +475,13 @@ struct L10n: Sendable {
     var pdfLineBreakFix: String { t(zh: "PDF / 论文断行修复", en: "PDF Line-Break Cleanup") }
     var pdfLineBreakFixCaption: String {
         t(zh: "自动合并复制来的多余硬回车与连字符断词 (algo-\\nrithm)", en: "Auto-join wrapped PDF lines and de-hyphenate split words")
+    }
+    var preserveFormatting: String { t(zh: "保留文档结构与格式", en: "Preserve Structure & Formatting") }
+    var preserveFormattingCaption: String {
+        t(
+            zh: "从网页、文档复制或粘贴时保留标题、加粗、列表、链接与表格，并支持带格式复制/替换",
+            en: "Keep headings, bold, lists, links & tables from web pages and docs, and copy or replace with formatting"
+        )
     }
     var translationCache: String { t(zh: "翻译结果缓存", en: "Translation Cache") }
     var translationCacheToggleCaption: String {

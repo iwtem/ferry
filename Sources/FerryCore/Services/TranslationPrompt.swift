@@ -40,11 +40,25 @@ enum TranslationPrompt {
     // MARK: - Text translation & writing modes
 
     /// System prompt for the given mode. `target == nil` means keep the original text's language (writing modes with `.auto`).
-    static func systemPrompt(for target: TargetLanguage?, mode: TranslationMode = .translate) -> String {
+    static func systemPrompt(
+        for target: TargetLanguage?,
+        mode: TranslationMode = .translate,
+        preserveStructure: Bool = false
+    ) -> String {
+        let structureAppendix = preserveStructure ? """
+
+            Structure & Markdown rules (the input contains structured formatting):
+            - Strictly preserve all Markdown syntax and document hierarchy: headings (#), bold (**), italic (*), strikethrough (~~), inline code (`), fenced code blocks (```), blockquotes (>), bullet/numbered/task lists with their exact nesting indentation, and GFM tables (|...| and separator rows with identical column counts).
+            - For Markdown links [label](url), translate or edit only the link label and keep the URL byte-for-byte unchanged.
+            - Keep code inside backticks or fenced code blocks untranslated.
+            - Never wrap the entire response in a ```markdown code fence.
+            """ : ""
+
+        let basePrompt: String
         switch mode {
         case .translate:
             let language = (target ?? .zhCN).englishName
-            return """
+            basePrompt = """
             You are a professional translator who writes like a native \(language) speaker.
             Translate the text the user sends into \(language).
 
@@ -61,7 +75,7 @@ enum TranslationPrompt {
         case .polish:
             let languageDirective = target.map { "Rewrite and polish the text into natural, idiomatic \($0.englishName)." }
                 ?? "Polish the text in its original language so it reads as if written by a native speaker."
-            return """
+            basePrompt = """
             You are a native-level editor and copywriter.
             \(languageDirective)
 
@@ -77,7 +91,7 @@ enum TranslationPrompt {
         case .grammar:
             let languageDirective = target.map { "Correct and express the text accurately in \($0.englishName)." }
                 ?? "Proofread and fix grammar, spelling, punctuation, and word-choice errors in the text's original language."
-            return """
+            basePrompt = """
             You are a meticulous proofreader.
             \(languageDirective)
 
@@ -93,7 +107,7 @@ enum TranslationPrompt {
         case .concise:
             let languageDirective = target.map { "Rewrite the text into clear, concise, professional \($0.englishName) suitable for workplace communication." }
                 ?? "Rewrite the text in its original language to be clear, concise, and professional for workplace communication."
-            return """
+            basePrompt = """
             You are an expert workplace communication editor (emails, Slack messages, PR comments, product specs).
             \(languageDirective)
 
@@ -109,7 +123,7 @@ enum TranslationPrompt {
         case .academic:
             let languageDirective = target.map { "Rewrite the text into rigorous, formal academic \($0.englishName)." }
                 ?? "Rewrite the text in its original language using formal, precise academic prose."
-            return """
+            basePrompt = """
             You are an academic writing editor specializing in research papers, abstracts, and technical reports.
             \(languageDirective)
 
@@ -122,6 +136,8 @@ enum TranslationPrompt {
             Reply with the revised text only: no explanations, commentary, or surrounding quotation marks.
             """
         }
+
+        return basePrompt + structureAppendix
     }
 
     static func userMessage(text: String, target: TargetLanguage?, mode: TranslationMode = .translate) -> String {
@@ -213,7 +229,8 @@ enum TranslationPrompt {
     }
 
     static func textMessages(text: String, target: TargetLanguage?, mode: TranslationMode = .translate) -> [Message] {
-        [["role": "system", "content": systemPrompt(for: target, mode: mode)]]
+        let structured = MarkdownDocument.hasStructure(text)
+        return [["role": "system", "content": systemPrompt(for: target, mode: mode, preserveStructure: structured)]]
             + fewShot(for: target, mode: mode)
             + [["role": "user", "content": userMessage(text: text, target: target, mode: mode)]]
     }

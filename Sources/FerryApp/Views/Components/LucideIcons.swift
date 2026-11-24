@@ -42,6 +42,8 @@ public struct LucideIcon: View {
         case zap
         case columns2
         case layers
+        case code
+        case fileText
     }
 
     public let name: Name
@@ -579,6 +581,36 @@ private struct LucideStrokeShape: Shape {
             p.move(to: g.pt(2, 17))
             p.addLine(to: g.pt(12, 22))
             p.addLine(to: g.pt(22, 17))
+
+        case .code:
+            // Lucide code: <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+            p.move(to: g.pt(16, 18))
+            p.addLine(to: g.pt(22, 12))
+            p.addLine(to: g.pt(16, 6))
+            p.move(to: g.pt(8, 6))
+            p.addLine(to: g.pt(2, 12))
+            p.addLine(to: g.pt(8, 18))
+
+        case .fileText:
+            // Lucide file-text: page outline + folded corner + 3 text lines
+            p.move(to: g.pt(15, 2))
+            p.addLine(to: g.pt(6, 2))
+            p.addQuadCurve(to: g.pt(4, 4), control: g.pt(4, 2))
+            p.addLine(to: g.pt(4, 20))
+            p.addQuadCurve(to: g.pt(6, 22), control: g.pt(4, 22))
+            p.addLine(to: g.pt(18, 22))
+            p.addQuadCurve(to: g.pt(20, 20), control: g.pt(20, 22))
+            p.addLine(to: g.pt(20, 7))
+            p.closeSubpath()
+            p.move(to: g.pt(14, 2))
+            p.addLine(to: g.pt(14, 8))
+            p.addLine(to: g.pt(20, 8))
+            p.move(to: g.pt(10, 9))
+            p.addLine(to: g.pt(8, 9))
+            p.move(to: g.pt(16, 13))
+            p.addLine(to: g.pt(8, 13))
+            p.move(to: g.pt(16, 17))
+            p.addLine(to: g.pt(8, 17))
         }
 
         return p

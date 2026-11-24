@@ -127,6 +127,57 @@ enum UISnapshot {
                 size: nil, appearance: appearance,
                 to: outputDir.appendingPathComponent("popup-compare-\(appearanceName).png")
             )
+            let structuredSession = TranslatorSession(settingsStore: store, translatorService: service)
+            structuredSession.sourceFormat = .richText
+            structuredSession.sourceText = """
+            ## Release Highlights
+
+            Ferry now preserves **rich formatting** and *document structure* with `zero` third-party dependencies.
+
+            - Headings, **bold**, and [clickable links](https://github.com/iwtem/ferry)
+              - Nested list items stay aligned
+            - [x] Automatic HTML & RTF clipboard capture
+
+            > Copy or replace back into Notion, Feishu, Word, or Apple Notes with formatting intact.
+
+            | Feature | Status |
+            | :--- | :---: |
+            | Rich Clipboard | Done |
+            | Markdown Preview | Done |
+            """
+            structuredSession.translatedText = """
+            ## 更新亮点
+
+            渡 Ferry 现已支持保留 **富文本格式** 与 *文档结构*，全程 `零` 第三方依赖。
+
+            - 标题、**加粗** 与 [可点击链接](https://github.com/iwtem/ferry)
+              - 嵌套列表缩进保持对齐
+            - [x] 自动捕获 HTML 与 RTF 剪贴板结构
+
+            > 复制或替换回飞书、Notion、Word 或备忘录时可自动保留排版格式。
+
+            | 能力 | 状态 |
+            | :--- | :---: |
+            | 富文本剪贴板 | 已支持 |
+            | 排版视图预览 | 已支持 |
+            """
+            structuredSession.resolvedLanguage = .zhCN
+            structuredSession.activeResultModel = ModelChoice(provider: .deepseek, model: "deepseek-chat")
+            let structuredMainState = MainWindowUIState()
+            structuredMainState.showHistory = false
+            render(
+                MainWindowView(session: structuredSession, settingsStore: store, copyMonitor: copyMonitor, speechService: speechService, uiState: structuredMainState,
+                               onToggleDesktopWidget: {}, onOpenSettings: {}),
+                size: NSSize(width: 940, height: 600), appearance: appearance,
+                to: outputDir.appendingPathComponent("main-structured-\(appearanceName).png")
+            )
+            render(
+                QuickPopupView(session: structuredSession, settingsStore: store, speechService: speechService, uiState: popupState,
+                               onTogglePin: { _ in }, onOpenInMainWindow: {}, onOpenSettings: {},
+                               onReplaceInSourceApp: {}, onClose: {}),
+                size: nil, appearance: appearance,
+                to: outputDir.appendingPathComponent("popup-structured-\(appearanceName).png")
+            )
             render(
                 DesktopMiniWidgetView(session: session(cached: true), settingsStore: store, speechService: speechService,
                                       onToggleAlwaysOnTop: { _ in }, onOpenInMainWindow: {}, onOpenSettings: {}, onClose: {}),

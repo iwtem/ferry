@@ -29,13 +29,16 @@ public struct VisualEffectBackground: NSViewRepresentable {
     }
 }
 
-/// Custom NSTextView supporting Enter-to-submit (or Cmd+Enter), placeholder text, and reliable focus in NSPopover/NSPanel.
+/// Custom NSTextView supporting Enter-to-submit (or Cmd+Enter), placeholder text, structure-preserving paste,
+/// and reliable focus in NSPopover/NSPanel.
 public struct SmartTextView: NSViewRepresentable {
     @Binding public var text: String
     public var placeholder: String
     public var submitOnEnter: Bool
     public var fontSize: CGFloat
     public var focusTrigger: Int
+    public var preserveFormatting: Bool
+    public var onPasteContent: ((CapturedContent) -> Void)?
     public var onSubmit: () -> Void
 
     public init(
@@ -44,6 +47,8 @@ public struct SmartTextView: NSViewRepresentable {
         submitOnEnter: Bool = true,
         fontSize: CGFloat = 13.5,
         focusTrigger: Int = 0,
+        preserveFormatting: Bool = true,
+        onPasteContent: ((CapturedContent) -> Void)? = nil,
         onSubmit: @escaping () -> Void
     ) {
         self._text = text
@@ -51,6 +56,8 @@ public struct SmartTextView: NSViewRepresentable {
         self.submitOnEnter = submitOnEnter
         self.fontSize = fontSize
         self.focusTrigger = focusTrigger
+        self.preserveFormatting = preserveFormatting
+        self.onPasteContent = onPasteContent
         self.onSubmit = onSubmit
     }
 
@@ -84,6 +91,8 @@ public struct SmartTextView: NSViewRepresentable {
         textView.textContainer?.widthTracksTextView = true
         textView.placeholderText = placeholder
         textView.submitOnEnter = submitOnEnter
+        textView.preserveFormatting = preserveFormatting
+        textView.onPasteContent = onPasteContent
         textView.onSubmit = onSubmit
         textView.string = text
 
@@ -106,6 +115,8 @@ public struct SmartTextView: NSViewRepresentable {
             textView.needsDisplay = true
         }
         textView.submitOnEnter = submitOnEnter
+        textView.preserveFormatting = preserveFormatting
+        textView.onPasteContent = onPasteContent
         textView.onSubmit = onSubmit
         textView.font = NSFont.systemFont(ofSize: fontSize)
 
@@ -141,7 +152,20 @@ public struct SmartTextView: NSViewRepresentable {
 final class SubmitHandlingTextView: NSTextView {
     var placeholderText: String = ""
     var submitOnEnter: Bool = true
+    var preserveFormatting: Bool = true
+    var onPasteContent: ((CapturedContent) -> Void)?
     var onSubmit: (() -> Void)?
+
+    override func paste(_ sender: Any?) {
+        if preserveFormatting,
+           let captured = RichClipboardService.readContent(from: .general, preserveFormatting: true),
+           captured.format == .richText || captured.format == .markdown {
+            insertText(captured.text, replacementRange: selectedRange())
+            onPasteContent?(captured)
+            return
+        }
+        super.paste(sender)
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -344,19 +368,36 @@ public struct CopyResultButton: View {
     public let copied: Bool
     public let disabled: Bool
     public var size: CGFloat = 26
+    public var autoFormat: OutputCopyFormat = .plainText
+    public var isStructured: Bool = false
+    public var onCopyFormat: ((OutputCopyFormat) -> Void)? = nil
     public let action: () -> Void
     @Environment(\.appLanguage) private var appLanguage
 
-    public init(copied: Bool, disabled: Bool, size: CGFloat = 26, action: @escaping () -> Void) {
+    public init(
+        copied: Bool,
+        disabled: Bool,
+        size: CGFloat = 26,
+        autoFormat: OutputCopyFormat = .plainText,
+        isStructured: Bool = false,
+        onCopyFormat: ((OutputCopyFormat) -> Void)? = nil,
+        action: @escaping () -> Void
+    ) {
         self.copied = copied
         self.disabled = disabled
         self.size = size
+        self.autoFormat = autoFormat
+        self.isStructured = isStructured
+        self.onCopyFormat = onCopyFormat
         self.action = action
     }
 
     public var body: some View {
         let l10n = L10n(appLanguage)
         let iconSize = max(13, (size * 0.58).rounded())
+        let helpText = copied
+            ? l10n.copied
+            : l10n.copyAutoTooltip(for: autoFormat, structured: isStructured && onCopyFormat != nil)
         Button(action: action) {
             Group {
                 if copied {
@@ -370,9 +411,83 @@ public struct CopyResultButton: View {
         }
         .buttonStyle(HoverIconButtonStyle(isOn: copied, activeColor: Stage.ok, size: size))
         .disabled(disabled)
-        .help(copied ? l10n.copied : l10n.copy)
-        .accessibilityLabel(copied ? l10n.copied : l10n.copy)
+        .contextMenu {
+            if isStructured, !disabled, let onCopyFormat {
+                Button {
+                    onCopyFormat(.richText)
+                } label: {
+                    Label(l10n.copyRichTextMenu, systemImage: "doc.richtext")
+                }
+                Button {
+                    onCopyFormat(.markdown)
+                } label: {
+                    Label(l10n.copyMarkdownMenu, systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                Button {
+                    onCopyFormat(.plainText)
+                } label: {
+                    Label(l10n.copyPlainTextMenu, systemImage: "doc.plaintext")
+                }
+            }
+        }
+        .help(helpText)
+        .accessibilityLabel(helpText)
         .animation(FerryMotion.animation(FerryMotion.spring), value: copied)
+    }
+}
+
+/// Toggle button for switching structured translation results between rendered layout and raw Markdown source.
+public struct MarkdownModeToggleButton: View {
+    @Binding public var showRawMarkdown: Bool
+    public var size: CGFloat = 26
+    @Environment(\.appLanguage) private var appLanguage
+
+    public init(showRawMarkdown: Binding<Bool>, size: CGFloat = 26) {
+        self._showRawMarkdown = showRawMarkdown
+        self.size = size
+    }
+
+    public var body: some View {
+        let l10n = L10n(appLanguage)
+        let label = showRawMarkdown ? l10n.viewFormattedLayoutTooltip : l10n.viewMarkdownSourceTooltip
+        let iconSize = max(13, (size * 0.56).rounded())
+        Button {
+            withAnimation(FerryMotion.animation(FerryMotion.quick)) {
+                showRawMarkdown.toggle()
+            }
+        } label: {
+            LucideIcon(.code, size: iconSize)
+        }
+        .buttonStyle(HoverIconButtonStyle(isOn: showRawMarkdown, size: size))
+        .help(label)
+        .accessibilityLabel(label)
+    }
+}
+
+/// Compact capsule badge shown when rich document formatting was captured from the source.
+public struct StructuredFormatBadge: View {
+    public var compact: Bool = false
+    @Environment(\.appLanguage) private var appLanguage
+
+    public init(compact: Bool = false) {
+        self.compact = compact
+    }
+
+    public var body: some View {
+        let l10n = L10n(appLanguage)
+        HStack(spacing: 3) {
+            LucideIcon(.fileText, size: compact ? 9.5 : 10, strokeWidth: 2.0)
+            Text(l10n.richFormatBadge)
+                .font(.system(size: compact ? 10 : 10.5, weight: .medium))
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, compact ? 6 : 7)
+        .padding(.vertical, compact ? 2 : 2.5)
+        .background(Color.primary.opacity(0.06), in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.75))
+        .help(l10n.richFormatBadgeTooltip)
+        .accessibilityLabel(l10n.richFormatBadgeTooltip)
+        .fixedSize()
     }
 }
 
