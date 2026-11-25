@@ -72,10 +72,6 @@ public struct MenuBarPopoverView: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Stage.controlStroke, lineWidth: 1)
-        )
         .tint(FerryTheme.accent)
         .ferryLocalized(lang)
         .onChange(of: session.targetLanguage) { _, _ in

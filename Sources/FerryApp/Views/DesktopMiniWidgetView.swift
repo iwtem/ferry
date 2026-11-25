@@ -224,10 +224,6 @@ public struct DesktopMiniWidgetView: View {
         .tint(FerryTheme.accent)
         .ferryLocalized(lang)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.primary.opacity(0.16), lineWidth: 1)
-        )
         .onChange(of: session.targetLanguage) { _, _ in
             if hasSource {
                 session.translate()
